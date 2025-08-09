@@ -7,3 +7,4 @@ class Config:
     OUTPUT_FOLDER = os.path.abspath("generated")
     ALLOWED_XML = {"xml"}
     ALLOWED_AUDIO = {"mp3","wav","m4a","aac"}
+    LOG_FILE = os.environ.get("LOG_FILE", os.path.abspath("app.log"))

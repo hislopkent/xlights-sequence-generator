@@ -1,5 +1,5 @@
-from flask import Flask, render_template, request, jsonify, send_file
-import os, uuid, json, shutil
+from flask import Flask, render_template, request, jsonify, send_file, g
+import os, uuid, json, shutil, time, logging
 from werkzeug.exceptions import RequestEntityTooLarge
 from xlights_seq.config import Config
 from xlights_seq.parsers import parse_models
@@ -11,11 +11,40 @@ app.config.from_object(Config)
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs(app.config["OUTPUT_FOLDER"], exist_ok=True)
 
+# Configure logging
+handler = logging.FileHandler(app.config["LOG_FILE"])
+handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
+app.logger.addHandler(handler)
+app.logger.setLevel(logging.INFO)
+
+
+@app.before_request
+def log_request_start():
+    g.start_time = time.time()
+    app.logger.info(f"Started {request.method} {request.path}")
+
+
+@app.after_request
+def log_request_end(response):
+    if hasattr(g, "start_time"):
+        duration = (time.time() - g.start_time) * 1000
+        app.logger.info(
+            f"Completed {request.method} {request.path} with status {response.status_code} in {duration:.2f}ms"
+        )
+    return response
+
 
 @app.errorhandler(RequestEntityTooLarge)
 def handle_large(_):
+    app.logger.error(f"Request too large for {request.path}")
     max_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
     return jsonify({"ok": False, "error": f"File too large (max {max_mb} MB)."}), 413
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    app.logger.exception(f"Error handling request: {request.method} {request.path}")
+    return jsonify({"ok": False, "error": "Internal server error"}), 500
 
 @app.get("/")
 def index():
