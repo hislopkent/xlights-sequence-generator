@@ -41,3 +41,5 @@ docker compose up --build -d
 ## Notes
 - Dockerfile includes `ffmpeg` + `libsndfile1` for audio analysis (librosa).
 - Health endpoint: `GET /health` → `{ "ok": true }`
+- Version endpoint: `GET /version` → `{ "version": "<value>" }`
+- Set `APP_VERSION` environment variable to have the web UI display the current version (defaults to `dev`).
