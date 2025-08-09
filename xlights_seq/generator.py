@@ -13,12 +13,11 @@ PRESETS = {
     },
 }
 
-# presets that tend to render heavy effects; tiny models can skip them
+# presets that tend to render heavy effects; tiny models can swap them out
 HEAVY_PRESETS = {"meteor"}
 
-# thresholds below which a model is considered too small for heavy effects
-MIN_STRINGS = 2
-MIN_NODES = 10
+# node count below which we avoid heavy presets and use a simple effect
+SMALL_MODEL_NODES = 25
 
 
 def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None):
@@ -59,15 +58,6 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
 
     # simple per-beat effect per model
     for m in models:
-        # skip tiny models for heavy presets
-        if preset in HEAVY_PRESETS:
-            if (
-                m.strings is not None and m.strings < MIN_STRINGS
-            ) or (
-                m.nodes is not None and m.nodes < MIN_NODES
-            ):
-                continue
-
         mdl = ET.SubElement(root, "model", name=m.name)
         layer = ET.SubElement(mdl, "effectLayer", name="Layer 1")
         for i, bt in enumerate(beat_times):
@@ -78,6 +68,19 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
                 else duration_ms
             )
             eff_type = preset_cfg["type"]
+            eff_params = preset_cfg.get("params", {}).copy()
+            # tiny models get a simple "On" instead of heavy effects
+            if (
+                preset in HEAVY_PRESETS
+                and m.nodes is not None
+                and m.nodes < SMALL_MODEL_NODES
+            ):
+                eff_type = PRESETS["solid_pulse"]["type"]
+                eff_params = PRESETS["solid_pulse"]["params"].copy()
+            if preset == "bars":
+                bars = max(4, min(24, (m.strings or 8)))
+                eff_params["Bars"] = str(bars)
+
             eff = ET.SubElement(
                 layer,
                 "effect",
@@ -86,16 +89,7 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
                 type=eff_type,
             )
 
-            params = preset_cfg.get("params", {}).copy()
-            if preset == "bars":
-                bars_val = None
-                if m.strings is not None:
-                    bars_val = m.strings
-                elif m.nodes is not None:
-                    bars_val = max(1, m.nodes // 50)
-                if bars_val is not None:
-                    params["Bars"] = str(bars_val)
-            for name, value in params.items():
+            for name, value in eff_params.items():
                 ET.SubElement(eff, "param", name=name, value=value)
     return ET.ElementTree(root)
 
