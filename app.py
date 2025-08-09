@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file, g
-import os, uuid, json, shutil, time, logging
+import os, uuid, json, shutil, time, logging, math
 from werkzeug.exceptions import RequestEntityTooLarge
 from xlights_seq.config import Config
 from xlights_seq.parsers import parse_models
@@ -59,10 +59,8 @@ def generate():
     layout = request.files.get("layout")
     audio = request.files.get("audio")
     preset = request.form.get("preset", "solid_pulse")
-    manual_bpm = request.form.get("bpm")
-    manual_bpm = float(manual_bpm) if manual_bpm else None
-    offset_ms = request.form.get("start_offset_ms")
-    offset_ms = float(offset_ms) if offset_ms else 0.0
+    manual_bpm = float(request.form.get("manual_bpm") or 0) or None
+    start_offset_ms = int(request.form.get("start_offset_ms") or 0)
 
     if not layout or not audio:
         return jsonify({"ok": False, "error": "Both layout XML and audio are required."}), 400
@@ -95,15 +93,13 @@ def generate():
     duration_ms = int(duration_s * 1000)
 
     if manual_bpm:
-        step_s = 60.0 / manual_bpm
-        beat_times = [i * step_s for i in range(int(duration_s / step_s) + 1)]
-        offset_s = offset_ms / 1000.0
-        beat_times = [t + offset_s for t in beat_times]
-        beat_times = [t for t in beat_times if 0 <= t <= duration_s]
-        bpm_val = manual_bpm
+        period_s = 60.0 / manual_bpm
+        total = int(math.ceil(duration_s / period_s))
+        beat_times = [i * period_s for i in range(total)]
     else:
         beat_times = analysis["beat_times"]
-        bpm_val = analysis.get("bpm")
+    beat_times = [max(0.0, (t * 1000 + start_offset_ms) / 1000.0) for t in beat_times]
+    bpm_val = manual_bpm if manual_bpm else analysis.get("bpm")
 
     sections = analysis.get("sections")
 
@@ -120,7 +116,9 @@ def generate():
             "bpm": bpm_val,
             "durationMs": duration_ms,
             "models": [m.__dict__ for m in models],
-            "preset": preset
+            "preset": preset,
+            "manual_bpm": manual_bpm,
+            "start_offset_ms": start_offset_ms
         }, f, indent=2)
 
     return jsonify({
