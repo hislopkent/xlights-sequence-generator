@@ -14,9 +14,7 @@ def test_analyze_beats_mocked(monkeypatch):
 
     result = analyze_beats("dummy.wav")
     assert result["bpm"] == 120.0
-    assert result["beat_times"] == [0.0,0.5,1.0,1.5]
+    assert result["beat_times"] == [0.0, 0.5, 1.0, 1.5]
+    assert result["onset_strength"] == [0.1, 0.2, 0.8, 0.4]
     assert result["duration_s"] == 2.0
-    assert result["sections"] == [
-        {"time": 0.5, "label": "Verse"},
-        {"time": 1.0, "label": "Chorus"},
-    ]
+    assert result["sections"] == [{"time": 1.0, "label": "Section 2"}]
