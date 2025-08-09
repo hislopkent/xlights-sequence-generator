@@ -1,15 +1,19 @@
-version: '3.8'
+version: "3.9"
 services:
-  xlights-generator:
-    build: .
-    image: ghcr.io/hislopkent/xlights-sequence-generator:latest  # Replace YOUR_USERNAME
+  xlights-seq:
+    image: hislopkent/xlights-auto-seq:latest
     ports:
-      - "5000:5000"
+      - "8080:8080"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./generated:/app/generated
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
   watchtower:
     image: containrrr/watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 60
+    command: --interval 300 --label-enable
     restart: unless-stopped
