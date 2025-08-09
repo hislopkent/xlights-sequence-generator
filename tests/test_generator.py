@@ -25,3 +25,19 @@ def test_effect_spans_and_params():
         assert eff.get("endMS") == str(end)
         assert eff.find("./param[@name='Color1']") is not None
 
+
+def test_custom_palette_overrides_default():
+    models = [ModelInfo(name="tree")]
+    beat_times = [0.0, 1.0, 2.0, 3.0]
+    duration_ms = 4000
+    custom = ["#111111", "#222222", "#333333"]
+
+    tree = build_rgbeffects(
+        models, beat_times, duration_ms, preset="solid_pulse", palette=custom
+    )
+    root = tree.getroot()
+    effects = root.find("./model").findall(".//effect")
+    colors = [e.find("./param[@name='Color1']").get("value") for e in effects]
+
+    assert colors[1:] == ["#222222", "#333333", "#111111"]
+

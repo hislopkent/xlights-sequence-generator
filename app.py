@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file, g
-import os, uuid, json, shutil, time, math, threading
+import os, uuid, json, shutil, time, math, threading, re
 import librosa
 from werkzeug.exceptions import RequestEntityTooLarge
 from xlights_seq.config import Config
@@ -83,6 +83,20 @@ def generate():
     preset = request.form.get("preset", "solid_pulse")
     manual_bpm = float(request.form.get("manual_bpm") or 0) or None
     start_offset_ms = int(request.form.get("start_offset_ms") or 0)
+    palette_str = request.form.get("palette", "").strip()
+    palette = None
+    if palette_str:
+        palette = []
+        for part in palette_str.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if not part.startswith("#"):
+                part = "#" + part
+            if re.fullmatch(r"#([0-9a-fA-F]{6})", part):
+                palette.append(part.upper())
+        if not palette:
+            palette = None
 
     if not layout or not audio:
         return (
@@ -180,7 +194,7 @@ def generate():
     duration_ms = int(duration_s * 1000)
     beat_times = [max(0.0, (t * 1000 + start_offset_ms) / 1000.0) for t in beat_times]
 
-    tree = build_rgbeffects(models, beat_times, duration_ms, preset, sections)
+    tree = build_rgbeffects(models, beat_times, duration_ms, preset, sections, palette)
 
     job_dir = os.path.join(app.config["OUTPUT_FOLDER"], job)
     os.makedirs(job_dir, exist_ok=True)
