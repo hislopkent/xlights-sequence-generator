@@ -66,14 +66,14 @@ def generate():
         bpm = info["bpm"]
         beat_times = info["beat_times"]
         duration_s = info["duration_s"]
-        if duration_override:
+        if duration_override is not None:
             duration_s = duration_override / 1000.0
     else:
         bpm = request.form.get("bpm", type=float)
         if not bpm:
             return jsonify(ok=False, error="bpm required for manual mode"), 400
         duration_s = librosa.get_duration(path=audio_path)
-        if duration_override:
+        if duration_override is not None:
             duration_s = duration_override / 1000.0
         interval = 60.0 / bpm
         beat_times = np.arange(0, duration_s + 1e-9, interval).tolist()
