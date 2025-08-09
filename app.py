@@ -80,9 +80,11 @@ def generate():
     )
     layout = request.files.get("layout")
     audio = request.files.get("audio")
+    networks = request.files.get("networks")
     preset = request.form.get("preset", "solid_pulse")
     manual_bpm = float(request.form.get("manual_bpm") or 0) or None
     start_offset_ms = int(request.form.get("start_offset_ms") or 0)
+    export_format = request.form.get("export_format", "rgbeffects_xml")
     palette_str = request.form.get("palette", "").strip()
     palette = None
     if palette_str:
@@ -112,6 +114,8 @@ def generate():
 
     if not _ok(layout.filename, ALLOWED_XML):
         return jsonify(ok=False, error="Layout must be .xml"), 400
+    if networks and not _ok(networks.filename, ALLOWED_XML):
+        return jsonify(ok=False, error="Networks must be .xml"), 400
     if not _ok(audio.filename, ALLOWED_AUDIO):
         return jsonify(ok=False, error="Audio must be mp3/wav/m4a/aac"), 400
 
@@ -128,6 +132,8 @@ def generate():
         return jsonify(ok=False, error=f"Layout file too large (max {max_mb}MB)."), 400
     if not _size_ok(audio):
         return jsonify(ok=False, error=f"Audio file too large (max {max_mb}MB)."), 400
+    if networks and not _size_ok(networks):
+        return jsonify(ok=False, error=f"Networks file too large (max {max_mb}MB)."), 400
 
     layout_ext = layout.filename.rsplit(".", 1)[-1].lower()
     audio_ext = audio.filename.rsplit(".", 1)[-1].lower()
@@ -135,15 +141,18 @@ def generate():
     job = str(uuid.uuid4())
     xml_path = os.path.join(app.config["UPLOAD_FOLDER"], f"{job}-layout.xml")
     audio_path = os.path.join(app.config["UPLOAD_FOLDER"], f"{job}-audio.{audio_ext}")
+    networks_path = None
 
     layout.save(xml_path)
     audio.save(audio_path)
     layout_bytes = os.path.getsize(xml_path)
     audio_bytes = os.path.getsize(audio_path)
-    app.logger.info(
-        "generate_files",
-        extra={"layout_bytes": layout_bytes, "audio_bytes": audio_bytes},
-    )
+    extra = {"layout_bytes": layout_bytes, "audio_bytes": audio_bytes}
+    if networks:
+        networks_path = os.path.join(app.config["UPLOAD_FOLDER"], f"{job}-networks.xml")
+        networks.save(networks_path)
+        extra["networks_bytes"] = os.path.getsize(networks_path)
+    app.logger.info("generate_files", extra=extra)
 
     try:
         models = parse_models(xml_path)
@@ -200,6 +209,8 @@ def generate():
     os.makedirs(job_dir, exist_ok=True)
     out_xml = os.path.join(job_dir, "rgbeffects.xml")
     write_rgbeffects(tree, out_xml)
+    if networks_path:
+        shutil.copy(networks_path, os.path.join(job_dir, "xlights_networks.xml"))
 
     with open(os.path.join(job_dir, "metadata.json"), "w", encoding="utf-8") as f:
         json.dump({
@@ -207,10 +218,12 @@ def generate():
             "bpm": bpm_val,
             "durationMs": duration_ms,
             "models": [m.__dict__ for m in models],
-            "preset": preset,
-            "manual_bpm": manual_bpm,
-            "start_offset_ms": start_offset_ms
-        }, f, indent=2)
+          "preset": preset,
+          "manual_bpm": manual_bpm,
+          "start_offset_ms": start_offset_ms,
+          "export_format": export_format,
+          "has_networks": bool(networks_path)
+          }, f, indent=2)
 
     with open(os.path.join(job_dir, "preview.json"), "w", encoding="utf-8") as f:
         json.dump({"beatTimes": beat_times, "sections": sections}, f)
@@ -228,9 +241,10 @@ def generate():
             "durationMs": duration_ms,
             "modelCount": len(models),
             "modelNames": [m.name for m in models],
-            "downloadUrl": f"/download/{job}",
-        }
-    )
+              "downloadUrl": f"/download/{job}",
+              "exportFormat": export_format,
+          }
+      )
 
 
 @app.get("/preview.json")
@@ -256,6 +270,17 @@ def download(job):
     job_dir = os.path.join(app.config["OUTPUT_FOLDER"], job)
     if not os.path.isdir(job_dir):
         return ("Not found", 404)
+    export_format = "rgbeffects_xml"
+    meta_path = os.path.join(job_dir, "metadata.json")
+    if os.path.isfile(meta_path):
+        with open(meta_path, "r", encoding="utf-8") as f:
+            try:
+                export_format = json.load(f).get("export_format", export_format)
+            except Exception:
+                pass
+    if export_format == "rgbeffects_xml":
+        file_path = os.path.join(job_dir, "rgbeffects.xml")
+        return send_file(file_path, as_attachment=True, download_name="rgbeffects.xml")
     zip_path = shutil.make_archive(job_dir, "zip", job_dir)
     return send_file(zip_path, as_attachment=True, download_name=f"xlights_{job}.zip")
 
