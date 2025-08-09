@@ -1,19 +1,15 @@
 import xml.etree.ElementTree as ET
 
 # mapping of preset names to effect configuration
-PRESET_MAP = {
-    "solid_pulse": {"type": "On"},
+PRESETS = {
+    "solid_pulse": {"type": "On", "params": {"Color1": "#FFFFFF"}},
     "bars": {
         "type": "Bars",
         "params": {"Bars": "6", "Direction": "LeftRight"},
     },
     "meteor": {
         "type": "Meteor",
-        # downbeat/normal parameter sets for speed/intensity
-        "params": {
-            "downbeat": {"Speed": "100", "Intensity": "100"},
-            "normal": {"Speed": "50", "Intensity": "60"},
-        },
+        "params": {"Count": "10", "Speed": "25", "Color1": "#00FFFF"},
     },
 }
 
@@ -23,16 +19,6 @@ HEAVY_PRESETS = {"meteor"}
 # thresholds below which a model is considered too small for heavy effects
 MIN_STRINGS = 2
 MIN_NODES = 10
-
-# color cycle used by the solid_pulse preset
-COLOR_CYCLE = [
-    "#FF0000",
-    "#00FF00",
-    "#0000FF",
-    "#FFFF00",
-    "#FF00FF",
-    "#00FFFF",
-]
 
 
 def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None):
@@ -69,7 +55,7 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
                 attrs["label"] = label
             ET.SubElement(timing_sec, "marker", **attrs)
 
-    preset_cfg = PRESET_MAP.get(preset, PRESET_MAP["solid_pulse"])
+    preset_cfg = PRESETS.get(preset, PRESETS["solid_pulse"])
 
     # simple per-beat effect per model
     for m in models:
@@ -91,20 +77,17 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
                 if i + 1 < len(beat_times)
                 else duration_ms
             )
+            eff_type = preset_cfg["type"]
             eff = ET.SubElement(
                 layer,
                 "effect",
                 startMS=str(start),
                 endMS=str(end),
-                type=preset_cfg["type"],
+                type=eff_type,
             )
 
-            if preset == "solid_pulse":
-                color = COLOR_CYCLE[i % len(COLOR_CYCLE)]
-                ET.SubElement(eff, "param", name="Color1", value=color)
-            elif preset == "bars":
-                params = preset_cfg["params"].copy()
-                # Adjust bar count based on model metadata
+            params = preset_cfg.get("params", {}).copy()
+            if preset == "bars":
                 bars_val = None
                 if m.strings is not None:
                     bars_val = m.strings
@@ -112,17 +95,8 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
                     bars_val = max(1, m.nodes // 50)
                 if bars_val is not None:
                     params["Bars"] = str(bars_val)
-                for name, value in params.items():
-                    ET.SubElement(eff, "param", name=name, value=value)
-            elif preset == "meteor":
-                is_downbeat = i % 4 == 0
-                params = preset_cfg["params"]["downbeat" if is_downbeat else "normal"].copy()
-                params["Color1"] = "#FFFFFF"
-                for name, value in params.items():
-                    ET.SubElement(eff, "param", name=name, value=value)
-            else:
-                for name, value in preset_cfg.get("params", {}).items():
-                    ET.SubElement(eff, "param", name=name, value=value)
+            for name, value in params.items():
+                ET.SubElement(eff, "param", name=name, value=value)
     return ET.ElementTree(root)
 
 def write_rgbeffects(tree, out_path: str):
