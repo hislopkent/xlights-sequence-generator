@@ -2,6 +2,7 @@ import importlib
 import pytest
 import os
 import sys
+import json
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -28,6 +29,8 @@ def test_health_endpoint(client):
 def test_logging_to_file(client):
     test_client, log_file = client
     test_client.get("/health")
-    contents = log_file.read_text()
-    assert "Started GET /health" in contents
-    assert "Completed GET /health" in contents
+    lines = [json.loads(line) for line in log_file.read_text().splitlines()]
+    assert lines[0]["message"] == "request_started"
+    assert lines[0]["path"] == "/health"
+    assert lines[1]["message"] == "request_completed"
+    assert lines[1]["status"] == 200

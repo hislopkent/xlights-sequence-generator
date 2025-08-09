@@ -7,6 +7,8 @@ class Config:
     OUTPUT_FOLDER = os.path.abspath("generated")
     ALLOWED_XML = {"xml"}
     ALLOWED_AUDIO = {"mp3","wav","m4a","aac"}
-    LOG_FILE = os.environ.get("LOG_FILE", os.path.abspath("app.log"))
+    LOG_FILE = os.environ.get(
+        "LOG_FILE", os.path.join(OUTPUT_FOLDER, "app.log")
+    )
     VERSION = os.environ.get("APP_VERSION", "dev")
     ANALYSIS_TIMEOUT = int(os.environ.get("ANALYSIS_TIMEOUT", "30"))

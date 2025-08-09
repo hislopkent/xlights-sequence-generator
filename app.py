@@ -1,28 +1,29 @@
 from flask import Flask, render_template, request, jsonify, send_file, g
-import os, uuid, json, shutil, time, logging, math, threading
+import os, uuid, json, shutil, time, math, threading
 import librosa
 from werkzeug.exceptions import RequestEntityTooLarge
 from xlights_seq.config import Config
 from xlights_seq.parsers import parse_models
 from xlights_seq.audio import analyze_beats
 from xlights_seq.generator import build_rgbeffects, write_rgbeffects
+from logger import get_json_logger
 
 app = Flask(__name__)
 app.config.from_object(Config)
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs(app.config["OUTPUT_FOLDER"], exist_ok=True)
 
-# Configure logging
-handler = logging.FileHandler(app.config["LOG_FILE"])
-handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
-app.logger.addHandler(handler)
-app.logger.setLevel(logging.INFO)
+# Configure JSON logger
+app.logger = get_json_logger(app.config["LOG_FILE"])
 
 
 @app.before_request
 def log_request_start():
     g.start_time = time.time()
-    app.logger.info(f"Started {request.method} {request.path}")
+    app.logger.info(
+        "request_started",
+        extra={"path": request.path, "ip": request.remote_addr},
+    )
 
 
 @app.after_request
@@ -30,21 +31,33 @@ def log_request_end(response):
     if hasattr(g, "start_time"):
         duration = (time.time() - g.start_time) * 1000
         app.logger.info(
-            f"Completed {request.method} {request.path} with status {response.status_code} in {duration:.2f}ms"
+            "request_completed",
+            extra={
+                "path": request.path,
+                "ip": request.remote_addr,
+                "status": response.status_code,
+                "duration_ms": round(duration, 2),
+            },
         )
     return response
 
 
 @app.errorhandler(RequestEntityTooLarge)
 def handle_large(_):
-    app.logger.error(f"Request too large for {request.path}")
+    app.logger.error(
+        "request_too_large",
+        extra={"path": request.path, "ip": request.remote_addr},
+    )
     max_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
     return jsonify({"ok": False, "error": f"File too large (max {max_mb} MB)."}), 413
 
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    app.logger.exception(f"Error handling request: {request.method} {request.path}")
+    app.logger.exception(
+        "unhandled_exception",
+        extra={"path": request.path, "ip": request.remote_addr, "error": str(e)},
+    )
     return jsonify({"ok": False, "error": "Internal server error"}), 500
 
 @app.get("/")
@@ -62,6 +75,9 @@ def version():
 
 @app.post("/generate")
 def generate():
+    app.logger.info(
+        "generate_start", extra={"path": request.path, "ip": request.remote_addr}
+    )
     layout = request.files.get("layout")
     audio = request.files.get("audio")
     preset = request.form.get("preset", "solid_pulse")
@@ -69,7 +85,10 @@ def generate():
     start_offset_ms = int(request.form.get("start_offset_ms") or 0)
 
     if not layout or not audio:
-        return jsonify({"ok": False, "error": "Both layout XML and audio are required."}), 400
+        return (
+            jsonify({"ok": False, "error": "Both layout XML and audio are required."}),
+            400,
+        )
 
     ALLOWED_XML = app.config["ALLOWED_XML"]
     ALLOWED_AUDIO = app.config["ALLOWED_AUDIO"]
@@ -105,6 +124,12 @@ def generate():
 
     layout.save(xml_path)
     audio.save(audio_path)
+    layout_bytes = os.path.getsize(xml_path)
+    audio_bytes = os.path.getsize(audio_path)
+    app.logger.info(
+        "generate_files",
+        extra={"layout_bytes": layout_bytes, "audio_bytes": audio_bytes},
+    )
 
     try:
         models = parse_models(xml_path)
@@ -125,7 +150,8 @@ def generate():
 
     if t.is_alive():
         app.logger.error(
-            f"Audio analysis timed out after {app.config['ANALYSIS_TIMEOUT']}s"
+            "analysis_timeout",
+            extra={"path": request.path, "ip": request.remote_addr},
         )
         try:
             duration_s = float(librosa.get_duration(path=audio_path))
@@ -172,16 +198,22 @@ def generate():
             "start_offset_ms": start_offset_ms
         }, f, indent=2)
 
-    return jsonify({
-        "ok": True,
-        "jobId": job,
-        "bpm": bpm_val,
-        "manualBpm": manual_bpm,
-        "durationMs": duration_ms,
-        "modelCount": len(models),
-        "modelNames": [m.name for m in models],
-        "downloadUrl": f"/download/{job}"
-    })
+    app.logger.info(
+        "generate_complete",
+        extra={"bpm": bpm_val, "path": request.path, "ip": request.remote_addr},
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "jobId": job,
+            "bpm": bpm_val,
+            "manualBpm": manual_bpm,
+            "durationMs": duration_ms,
+            "modelCount": len(models),
+            "modelNames": [m.name for m in models],
+            "downloadUrl": f"/download/{job}",
+        }
+    )
 
 @app.get("/download/<job>")
 def download(job):
