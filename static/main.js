@@ -1,6 +1,7 @@
 const form = document.getElementById('genForm');
 const out = document.getElementById('result');
 const spinner = document.getElementById('spinner');
+const previewCanvas = document.getElementById('previewCanvas');
 const MAX_MB = 25;
 const ALLOWED_XML = ['text/xml', 'application/xml'];
 const ALLOWED_AUDIO = ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/aac', 'audio/m4a', 'audio/mp4'];
@@ -29,12 +30,13 @@ function showResult(j) {
   const downloadUrl = location.origin + j.downloadUrl;
   out.className = 'result-panel';
   out.innerHTML = `
-    <p><strong>Detected BPM:</strong> ${j.bpm ?? 'n/a'}</p>
-    <p><strong>Manual BPM:</strong> ${j.manualBpm ?? 'n/a'}</p>
-    <p><strong>Duration:</strong> ${minutes}:${seconds}</p>
-    <p><strong>Models (${j.modelCount}):</strong> ${modelText}</p>
-    <a class="download-btn" href="${downloadUrl}">Download</a>
-  `;
+      <p><strong>Detected BPM:</strong> ${j.bpm ?? 'n/a'}</p>
+      <p><strong>Manual BPM:</strong> ${j.manualBpm ?? 'n/a'}</p>
+      <p><strong>Duration:</strong> ${minutes}:${seconds}</p>
+      <p><strong>Models (${j.modelCount}):</strong> ${modelText}</p>
+      <a class="download-btn" href="${downloadUrl}">Download</a>
+    `;
+    renderPreview(j.jobId, j.durationMs);
 }
 
 form.addEventListener('submit', async (e) => {
@@ -76,4 +78,38 @@ form.addEventListener('submit', async (e) => {
 });
 
 // Initial message
-showMessage('Waiting...');
+  showMessage('Waiting...');
+
+async function renderPreview(jobId, durationMs) {
+  if (!previewCanvas) return;
+  try {
+    const r = await fetch(`/preview.json?job=${encodeURIComponent(jobId)}`);
+    const data = await r.json();
+    if (!data.ok) return;
+    const width = previewCanvas.width;
+    const height = previewCanvas.height;
+    const ctx = previewCanvas.getContext('2d');
+    ctx.clearRect(0, 0, width, height);
+    ctx.strokeStyle = '#bbb';
+    ctx.lineWidth = 1;
+    (data.beatTimes || []).forEach(t => {
+      const x = (t * 1000 / durationMs) * width;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    });
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 3;
+    (data.sections || []).forEach(s => {
+      const x = (s.time * 1000 / durationMs) * width;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    });
+    previewCanvas.style.display = 'block';
+  } catch (err) {
+    // ignore errors
+  }
+}

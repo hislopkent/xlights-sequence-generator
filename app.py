@@ -198,6 +198,9 @@ def generate():
             "start_offset_ms": start_offset_ms
         }, f, indent=2)
 
+    with open(os.path.join(job_dir, "preview.json"), "w", encoding="utf-8") as f:
+        json.dump({"beatTimes": beat_times, "sections": sections}, f)
+
     app.logger.info(
         "generate_complete",
         extra={"bpm": bpm_val, "path": request.path, "ip": request.remote_addr},
@@ -212,6 +215,25 @@ def generate():
             "modelCount": len(models),
             "modelNames": [m.name for m in models],
             "downloadUrl": f"/download/{job}",
+        }
+    )
+
+
+@app.get("/preview.json")
+def preview():
+    job = request.args.get("job")
+    if not job:
+        return jsonify({"ok": False, "error": "Missing job"}), 400
+    preview_path = os.path.join(app.config["OUTPUT_FOLDER"], job, "preview.json")
+    if not os.path.isfile(preview_path):
+        return jsonify({"ok": False, "error": "Not found"}), 404
+    with open(preview_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return jsonify(
+        {
+            "ok": True,
+            "beatTimes": data.get("beatTimes", []),
+            "sections": data.get("sections", []),
         }
     )
 
