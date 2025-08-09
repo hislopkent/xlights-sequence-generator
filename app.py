@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify, send_file, g
-import os, uuid, json, shutil, time, logging, math
+import os, uuid, json, shutil, time, logging, math, threading
+import librosa
 from werkzeug.exceptions import RequestEntityTooLarge
 from xlights_seq.config import Config
 from xlights_seq.parsers import parse_models
@@ -110,24 +111,48 @@ def generate():
     except Exception as e:
         return jsonify({"ok": False, "error": f"Failed to parse XML: {e}"}), 400
 
-    try:
-        analysis = analyze_beats(audio_path)
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"Failed to analyze audio: {e}"}), 400
+    result = {}
 
-    duration_s = float(analysis["duration_s"])
-    duration_ms = int(duration_s * 1000)
+    def _worker():
+        try:
+            result["analysis"] = analyze_beats(audio_path)
+        except Exception as e:
+            result["error"] = e
 
-    if manual_bpm:
-        period_s = 60.0 / manual_bpm
+    t = threading.Thread(target=_worker)
+    t.start()
+    t.join(app.config["ANALYSIS_TIMEOUT"])
+
+    if t.is_alive():
+        app.logger.error(
+            f"Audio analysis timed out after {app.config['ANALYSIS_TIMEOUT']}s"
+        )
+        try:
+            duration_s = float(librosa.get_duration(path=audio_path))
+        except Exception as e:
+            return jsonify({"ok": False, "error": f"Failed to analyze audio: {e}"}), 400
+        bpm_val = 120.0
+        period_s = 60.0 / bpm_val
         total = int(math.ceil(duration_s / period_s))
         beat_times = [i * period_s for i in range(total)]
+        sections = []
     else:
-        beat_times = analysis["beat_times"]
-    beat_times = [max(0.0, (t * 1000 + start_offset_ms) / 1000.0) for t in beat_times]
-    bpm_val = manual_bpm if manual_bpm else analysis.get("bpm")
+        if "error" in result:
+            return jsonify({"ok": False, "error": f"Failed to analyze audio: {result['error']}"}), 400
+        analysis = result["analysis"]
+        duration_s = float(analysis["duration_s"])
+        if manual_bpm:
+            period_s = 60.0 / manual_bpm
+            total = int(math.ceil(duration_s / period_s))
+            beat_times = [i * period_s for i in range(total)]
+            bpm_val = manual_bpm
+        else:
+            beat_times = analysis["beat_times"]
+            bpm_val = analysis.get("bpm")
+        sections = analysis.get("sections")
 
-    sections = analysis.get("sections")
+    duration_ms = int(duration_s * 1000)
+    beat_times = [max(0.0, (t * 1000 + start_offset_ms) / 1000.0) for t in beat_times]
 
     tree = build_rgbeffects(models, beat_times, duration_ms, preset, sections)
 
