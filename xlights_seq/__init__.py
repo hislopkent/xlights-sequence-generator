@@ -5,6 +5,7 @@ import uuid
 from flask import Blueprint, render_template, request, jsonify, current_app
 
 from .utils import secure_ext, path_in
+from .parsers import parse_models
 
 
 main_bp = Blueprint("main", __name__)
@@ -49,16 +50,17 @@ def generate():
             return jsonify(ok=False, error="file too large"), 400
 
     os.makedirs(uploads, exist_ok=True)
-    xml.save(path_in(uploads, xml_name))
+    xml_path = path_in(uploads, xml_name)
+    xml.save(xml_path)
     audio.save(path_in(uploads, audio_name))
 
+    models = [mi.__dict__ for mi in parse_models(xml_path)]
     job_id = uuid.uuid4().hex
     response = {
         "ok": True,
         "jobId": job_id,
-        "models": [],
+        "models": models,
         "durationMs": 0,
         "bpm": 0,
     }
     return jsonify(response)
-
