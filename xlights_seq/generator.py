@@ -17,6 +17,13 @@ PRESET_MAP = {
     },
 }
 
+# presets that tend to render heavy effects; tiny models can skip them
+HEAVY_PRESETS = {"meteor"}
+
+# thresholds below which a model is considered too small for heavy effects
+MIN_STRINGS = 2
+MIN_NODES = 10
+
 # color cycle used by the solid_pulse preset
 COLOR_CYCLE = [
     "#FF0000",
@@ -41,6 +48,15 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str):
 
     # simple per-beat effect per model
     for m in models:
+        # skip tiny models for heavy presets
+        if preset in HEAVY_PRESETS:
+            if (
+                m.strings is not None and m.strings < MIN_STRINGS
+            ) or (
+                m.nodes is not None and m.nodes < MIN_NODES
+            ):
+                continue
+
         mdl = ET.SubElement(root, "model", name=m.name)
         layer = ET.SubElement(mdl, "effectLayer", name="Layer 1")
         for i, bt in enumerate(beat_times):
@@ -62,7 +78,16 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str):
                 color = COLOR_CYCLE[i % len(COLOR_CYCLE)]
                 ET.SubElement(eff, "param", name="Color1", value=color)
             elif preset == "bars":
-                for name, value in preset_cfg["params"].items():
+                params = preset_cfg["params"].copy()
+                # Adjust bar count based on model metadata
+                bars_val = None
+                if m.strings is not None:
+                    bars_val = m.strings
+                elif m.nodes is not None:
+                    bars_val = max(1, m.nodes // 50)
+                if bars_val is not None:
+                    params["Bars"] = str(bars_val)
+                for name, value in params.items():
                     ET.SubElement(eff, "param", name=name, value=value)
             elif preset == "meteor":
                 is_downbeat = i % 4 == 0
