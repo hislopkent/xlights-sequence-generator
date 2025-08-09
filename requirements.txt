@@ -1,3 +1,4 @@
 flask==3.0.3
-# For future audio analysis, uncomment: librosa==0.10.2.post1
-# For XML parsing (built-in, no need to install)
+librosa==0.10.2.post1
+soundfile==0.12.1
+numpy==1.26.4
