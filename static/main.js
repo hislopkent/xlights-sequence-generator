@@ -1,5 +1,6 @@
 const form = document.getElementById('genForm');
 const out = document.getElementById('result');
+const spinner = document.getElementById('spinner');
 const MAX_MB = 25;
 const ALLOWED_XML = ['text/xml', 'application/xml'];
 const ALLOWED_AUDIO = ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/aac', 'audio/m4a', 'audio/mp4'];
@@ -35,6 +36,7 @@ form.addEventListener('submit', async (e) => {
   }
 
   showMessage('Processing... (this can take a moment for large MP3s)');
+  spinner.style.display = 'block';
   const fd = new FormData(form);
   try {
     const r = await fetch('/generate', { method: 'POST', body: fd });
@@ -43,8 +45,12 @@ form.addEventListener('submit', async (e) => {
       showError(j.error || 'Unknown');
       return;
     }
-    showMessage(JSON.stringify(j, null, 2) + "\n\nDownload: " + location.origin + j.downloadUrl);
+    const durationSec = (j.durationMs / 1000).toFixed(2);
+    const modelsList = (j.modelNames || []).map(n => '- ' + n).join('\n');
+    showMessage(`Detected BPM: ${j.bpm ?? 'n/a'}\nDuration: ${durationSec}s\nModels (${j.modelCount}):\n${modelsList}\n\nDownload: ${location.origin + j.downloadUrl}`);
   } catch (err) {
     showError('Network error: ' + err.message);
+  } finally {
+    spinner.style.display = 'none';
   }
 });
