@@ -2,10 +2,13 @@
 
 import os
 import uuid
+import numpy as np
+import librosa
 from flask import Blueprint, render_template, request, jsonify, current_app
 
 from .utils import secure_ext, path_in
 from .parsers import parse_models
+from .audio import analyze_beats
 
 
 main_bp = Blueprint("main", __name__)
@@ -52,7 +55,28 @@ def generate():
     os.makedirs(uploads, exist_ok=True)
     xml_path = path_in(uploads, xml_name)
     xml.save(xml_path)
-    audio.save(path_in(uploads, audio_name))
+    audio_path = path_in(uploads, audio_name)
+    audio.save(audio_path)
+
+    bpm_mode = request.form.get("bpm_mode", "auto")
+    duration_override = request.form.get("duration", type=float)
+
+    if bpm_mode == "auto":
+        info = analyze_beats(audio_path)
+        bpm = info["bpm"]
+        beat_times = info["beat_times"]
+        duration_s = info["duration_s"]
+        if duration_override:
+            duration_s = duration_override / 1000.0
+    else:
+        bpm = request.form.get("bpm", type=float)
+        if not bpm:
+            return jsonify(ok=False, error="bpm required for manual mode"), 400
+        duration_s = librosa.get_duration(path=audio_path)
+        if duration_override:
+            duration_s = duration_override / 1000.0
+        interval = 60.0 / bpm
+        beat_times = np.arange(0, duration_s + 1e-9, interval).tolist()
 
     models = [mi.__dict__ for mi in parse_models(xml_path)]
     job_id = uuid.uuid4().hex
@@ -60,7 +84,8 @@ def generate():
         "ok": True,
         "jobId": job_id,
         "models": models,
-        "durationMs": 0,
-        "bpm": 0,
+        "durationMs": int(duration_s * 1000),
+        "bpm": float(bpm),
+        "beatTimes": beat_times,
     }
     return jsonify(response)
