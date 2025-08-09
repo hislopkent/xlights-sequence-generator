@@ -125,6 +125,7 @@ def generate():
         "ok": True,
         "jobId": job,
         "bpm": bpm_val,
+        "manualBpm": manual_bpm,
         "durationMs": duration_ms,
         "modelCount": len(models),
         "modelNames": [m.name for m in models],
