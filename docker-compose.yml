@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  xlights-generator:
+    build: .
+    image: ghcr.io/hislopkent/xlights-sequence-generator:latest  # Replace YOUR_USERNAME
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 60
+    restart: unless-stopped

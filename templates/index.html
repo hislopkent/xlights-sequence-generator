@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>xLights Sequence Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="container mt-5">
+    <h1 class="mb-4">xLights Sequence Generator</h1>
+    <p>Use the form below to generate a basic sequence XML file. This is expandable for future features like audio uploads and model views.</p>
+    <form method="post" class="mb-3">
+        <div class="mb-3">
+            <label for="model_name" class="form-label">Model Name</label>
+            <input type="text" class="form-control" id="model_name" name="model_name" value="Model1" required>
+        </div>
+        <div class="mb-3">
+            <label for="duration" class="form-label">Duration (seconds)</label>
+            <input type="number" class="form-control" id="duration" name="duration" value="30" min="1" required>
+        </div>
+        <div class="mb-3">
+            <label for="effect_type" class="form-label">Effect Type</label>
+            <select class="form-select" id="effect_type" name="effect_type">
+                <option value="On">On</option>
+                <option value="Off">Off</option>
+                <option value="Ramp">Ramp</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Generate Sequence</button>
+    </form>
+    <!-- Placeholder for future expansions, e.g., tabs or modals -->
+    <div id="future-features" class="card mt-4">
+        <div class="card-body">
+            <h5>Coming Soon: Audio Upload, Model Viewer, etc.</h5>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
