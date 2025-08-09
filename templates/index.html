@@ -27,6 +27,16 @@
       <label>Audio File
         <input name="audio" type="file" accept=".mp3,.wav,.m4a,.aac" required>
       </label>
+      <label>Export format
+        <select name="export_format">
+          <option value="rgbeffects_xml" selected>rgbeffects.xml</option>
+          <option value="xsq">XSQ (single file)</option>
+          <option value="xsqz">XSQZ (zip package)</option>
+        </select>
+      </label>
+      <label>Networks (optional, xlights_networks.xml)
+        <input name="networks" type="file" accept=".xml">
+      </label>
       <p>Up to 100MB.</p>
       <label>Effect Preset
         <select name="preset">

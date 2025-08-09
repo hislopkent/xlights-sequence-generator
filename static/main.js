@@ -5,6 +5,11 @@ const previewCanvas = document.getElementById('previewCanvas');
 const MAX_MB = 25;
 const ALLOWED_XML = ['text/xml', 'application/xml'];
 const ALLOWED_AUDIO = ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/aac', 'audio/m4a', 'audio/mp4'];
+const EXPORT_FORMAT_LABELS = {
+  rgbeffects_xml: 'rgbeffects.xml',
+  xsq: 'XSQ (single file)',
+  xsqz: 'XSQZ (zip package)'
+};
 
 function showError(msg) {
   out.className = 'error-banner';
@@ -17,6 +22,7 @@ function showMessage(msg) {
 }
 
 function showResult(j) {
+  const exportLabel = EXPORT_FORMAT_LABELS[j.exportFormat] || j.exportFormat;
   const minutes = Math.floor(j.durationMs / 60000);
   const seconds = Math.floor((j.durationMs % 60000) / 1000)
     .toString()
@@ -30,11 +36,12 @@ function showResult(j) {
   const downloadUrl = location.origin + j.downloadUrl;
   out.className = 'result-panel';
   out.innerHTML = `
+      <p><strong>Export format:</strong> ${exportLabel}</p>
       <p><strong>Detected BPM:</strong> ${j.bpm ?? 'n/a'}</p>
       <p><strong>Manual BPM:</strong> ${j.manualBpm ?? 'n/a'}</p>
       <p><strong>Duration:</strong> ${minutes}:${seconds}</p>
       <p><strong>Models (${j.modelCount}):</strong> ${modelText}</p>
-      <a class="download-btn" href="${downloadUrl}">Download</a>
+      <a class="download-btn" href="${downloadUrl}" download>Download</a>
     `;
     renderPreview(j.jobId, j.durationMs);
 }
@@ -44,9 +51,10 @@ form.addEventListener('submit', async (e) => {
 
   const layoutFile = form.layout.files[0];
   const audioFile = form.audio.files[0];
+  const networksFile = form.networks.files[0];
   const maxBytes = MAX_MB * 1024 * 1024;
 
-  if (layoutFile.size > maxBytes || audioFile.size > maxBytes) {
+  if (layoutFile.size > maxBytes || audioFile.size > maxBytes || (networksFile && networksFile.size > maxBytes)) {
     showError(`Files must be smaller than ${MAX_MB}MB.`);
     return;
   }
@@ -56,6 +64,10 @@ form.addEventListener('submit', async (e) => {
   }
   if (!ALLOWED_AUDIO.includes(audioFile.type)) {
     showError('Unsupported audio file type.');
+    return;
+  }
+  if (networksFile && !ALLOWED_XML.includes(networksFile.type)) {
+    showError('Unsupported networks file type.');
     return;
   }
 
