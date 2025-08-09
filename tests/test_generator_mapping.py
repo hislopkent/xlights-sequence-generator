@@ -35,3 +35,23 @@ def test_skip_small_model_for_heavy_effect():
     names = [m.get("name") for m in root.findall("model")]
     assert "small" not in names
     assert "big" in names
+
+
+def test_sections_timing_track():
+    models = [ModelInfo(name="m1")]
+    beat_times = [0, 1, 2, 3]
+    sections = [
+        {"time": 1.0, "label": "Intro"},
+        {"time": 2.0, "label": "Verse"},
+    ]
+    tree = build_rgbeffects(models, beat_times, duration_ms=4000, preset="solid_pulse", sections=sections)
+    root = tree.getroot()
+    timing_tracks = root.findall("timing")
+    names = [t.get("name") for t in timing_tracks]
+    assert "Sections" in names
+    sec_track = [t for t in timing_tracks if t.get("name") == "Sections"][0]
+    markers = sec_track.findall("marker")
+    assert markers[0].get("label") == "Intro"
+    assert markers[0].get("timeMS") == "1000"
+    assert markers[1].get("label") == "Verse"
+    assert markers[1].get("timeMS") == "2000"

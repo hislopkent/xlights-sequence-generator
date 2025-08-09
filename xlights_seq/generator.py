@@ -35,14 +35,39 @@ COLOR_CYCLE = [
 ]
 
 
-def build_rgbeffects(models, beat_times, duration_ms, preset: str):
-    """Generate an xLights RGB effects file using a preset."""
+def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None):
+    """Generate an xLights RGB effects file using a preset.
+
+    Parameters
+    ----------
+    models : list
+        Sequence of ``ModelInfo`` objects describing the layout models.
+    beat_times : list[float]
+        Beat timestamps in seconds.
+    duration_ms : int
+        Total duration of the song in milliseconds.
+    preset : str
+        Name of the effect preset to apply.
+    sections : list[dict], optional
+        Optional list of section markers as returned by ``analyze_beats``.
+        Each item must contain ``time`` (seconds) and ``label``.
+    """
 
     root = ET.Element("xrgb", version="2024.05", showDir=".")
-    # timing track
+    # timing track for beats
     timing = ET.SubElement(root, "timing", name="AutoBeat")
     for bt in beat_times:
         ET.SubElement(timing, "marker", timeMS=str(int(bt * 1000)))
+
+    # optional secondary timing track for musical sections
+    if sections:
+        timing_sec = ET.SubElement(root, "timing", name="Sections")
+        for sec in sections:
+            attrs = {"timeMS": str(int(sec["time"] * 1000))}
+            label = sec.get("label")
+            if label:
+                attrs["label"] = label
+            ET.SubElement(timing_sec, "marker", **attrs)
 
     preset_cfg = PRESET_MAP.get(preset, PRESET_MAP["solid_pulse"])
 

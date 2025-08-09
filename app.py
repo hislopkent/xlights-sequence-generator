@@ -48,7 +48,12 @@ def generate():
         analysis = analyze_beats(audio_path)
     except Exception:
         # Safe fallback if beat detection fails
-        analysis = {"bpm": None, "duration_s": 180.0, "beat_times": [i*0.5 for i in range(int(180/0.5))]}
+        analysis = {
+            "bpm": None,
+            "duration_s": 180.0,
+            "beat_times": [i * 0.5 for i in range(int(180 / 0.5))],
+            "sections": [],
+        }
 
     duration_s = float(analysis["duration_s"])
     duration_ms = int(duration_s * 1000)
@@ -64,7 +69,9 @@ def generate():
         beat_times = analysis["beat_times"]
         bpm_val = analysis.get("bpm")
 
-    tree = build_rgbeffects(models, beat_times, duration_ms, preset)
+    sections = analysis.get("sections")
+
+    tree = build_rgbeffects(models, beat_times, duration_ms, preset, sections)
 
     job_dir = os.path.join(app.config["OUTPUT_FOLDER"], job)
     os.makedirs(job_dir, exist_ok=True)
