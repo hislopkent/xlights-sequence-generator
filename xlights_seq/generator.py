@@ -29,7 +29,7 @@ HEAVY_PRESETS = {"meteor"}
 SMALL_MODEL_NODES = 25
 
 
-def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None):
+def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None, palette=None):
     """Generate an xLights RGB effects file using a preset.
 
     Parameters
@@ -45,6 +45,9 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
     sections : list[dict], optional
         Optional list of section markers as returned by ``analyze_beats``.
         Each item must contain ``time`` (seconds) and ``label``.
+    palette : list[str], optional
+        Optional list of hex colors (e.g. ``"#FF0000"``) used for Color1 cycling.
+        If not provided, falls back to the module ``PALETTE``.
     """
 
     root = ET.Element("xrgb", version="2024.05", showDir=".")
@@ -66,6 +69,7 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
     preset_cfg = PRESETS.get(preset, PRESETS["solid_pulse"])
 
     # simple per-beat effect per model
+    active_palette = palette or PALETTE
     for m in models:
         mdl = ET.SubElement(root, "model", name=m.name)
         layer = ET.SubElement(mdl, "effectLayer", name="Layer 1")
@@ -81,7 +85,7 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
             eff_params = preset_cfg.get("params", {}).copy()
 
             # rotating color palette
-            color = PALETTE[i % len(PALETTE)]
+            color = active_palette[i % len(active_palette)]
             is_downbeat = i % DOWNBEAT_INTERVAL == 0
             if is_downbeat:
                 color = DOWNBEAT_COLOR
