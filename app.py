@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify, send_file
 import os, uuid, json, shutil
+from werkzeug.exceptions import RequestEntityTooLarge
 from xlights_seq.config import Config
 from xlights_seq.parsers import parse_models
 from xlights_seq.audio import analyze_beats
@@ -9,6 +10,12 @@ app = Flask(__name__)
 app.config.from_object(Config)
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs(app.config["OUTPUT_FOLDER"], exist_ok=True)
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_large(_):
+    max_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
+    return jsonify({"ok": False, "error": f"File too large (max {max_mb} MB)."}), 413
 
 @app.get("/")
 def index():
@@ -31,9 +38,15 @@ def generate():
     if not layout or not audio:
         return jsonify({"ok": False, "error": "Both layout XML and audio are required."}), 400
 
+    layout_ext = (layout.filename.rsplit(".", 1)[-1] or "").lower()
+    audio_ext = (audio.filename.rsplit(".", 1)[-1] or "").lower()
+    if layout_ext not in app.config["ALLOWED_XML"] or layout.mimetype not in ("text/xml", "application/xml"):
+        return jsonify({"ok": False, "error": "Unsupported layout file type."}), 400
+    if audio_ext not in app.config["ALLOWED_AUDIO"] or not audio.mimetype.startswith("audio/"):
+        return jsonify({"ok": False, "error": "Unsupported audio file type."}), 400
+
     job = str(uuid.uuid4())
     xml_path = os.path.join(app.config["UPLOAD_FOLDER"], f"{job}-layout.xml")
-    audio_ext = (audio.filename.rsplit(".",1)[-1] or "mp3").lower()
     audio_path = os.path.join(app.config["UPLOAD_FOLDER"], f"{job}-audio.{audio_ext}")
 
     layout.save(xml_path)
@@ -46,14 +59,8 @@ def generate():
 
     try:
         analysis = analyze_beats(audio_path)
-    except Exception:
-        # Safe fallback if beat detection fails
-        analysis = {
-            "bpm": None,
-            "duration_s": 180.0,
-            "beat_times": [i * 0.5 for i in range(int(180 / 0.5))],
-            "sections": [],
-        }
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Failed to analyze audio: {e}"}), 400
 
     duration_s = float(analysis["duration_s"])
     duration_ms = int(duration_s * 1000)
