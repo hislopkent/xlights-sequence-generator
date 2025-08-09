@@ -1,49 +1,43 @@
-# xLights Sequence Generator
+# xLights Sequence Generator (Docker + Watchtower)
 
-This project provides a simple Flask-based web service that analyzes an audio file and an xLights rgbeffects XML to help build light sequences. It extracts tempo information and basic model details to assist in generating sequences.
+Runs a Flask web UI on **port 5000**. Auto-updates via **Watchtower** using the Docker Hub image:
+`hislopkent/xlights-sequence-generator:latest`
 
-## Features
-- Upload an xLights `rgbeffects.xml` file and a matching audio track.
-- Automatic BPM detection and beat timing extraction using `librosa`.
-- Basic model parsing from the XML to report model names and sizes.
-
-## Installation
-
-Install system dependencies for audio processing (FFmpeg and libsndfile) and Python packages:
-
-```bash
-pip install -r requirements.txt
+## Quick Start (Windows 10 + Docker Desktop)
+```powershell
+docker compose up -d
+# then open http://localhost:5000
 ```
 
-## Usage
+Uploads and outputs are mounted to local folders (`uploads/`, `generated/`).
 
-Run the development server:
+## Auto-Update Flow
+GitHub → build & push image to Docker Hub → Watchtower pulls → container restarts.
+This repo includes a GitHub Action to push `:latest`.
 
-```bash
-python app.py
+### Set Repo Secrets (GitHub → Settings → Secrets → Actions)
+- `DOCKERHUB_USERNAME` = hislopkent
+- `DOCKERHUB_TOKEN` = <Docker Hub access token>
+
+## Local Development (optional)
+Switch compose to build locally instead of pulling from Docker Hub:
+```yaml
+# in docker-compose.yml, replace the service with:
+xlights-seq:
+  build: .
+  ports: ["5000:5000"]
+  volumes:
+    - ./uploads:/app/uploads
+    - ./generated:/app/generated
+  restart: unless-stopped
+  labels:
+    - "com.centurylinklabs.watchtower.enable=true"
 ```
-
-The application listens on `http://localhost:5000` and provides a simple upload form.
-
-### Docker
-
-A `Dockerfile` and `docker-compose.yml` are provided for containerized deployment:
-
-```bash
-# Build and run locally
-Dockerfile:
-  docker build -t xlights-seq .
-  docker run -p 5000:5000 xlights-seq
-
-# Or with docker compose
-  docker-compose up --build
+Then:
+```powershell
+docker compose up --build -d
 ```
-
-Uploaded files are stored under `uploads/` and generated data in `generated/`.
-
-## Endpoints
-- `GET /` – Serve the upload form.
-- `POST /generate` – Accepts `xml` and `audio` files, returning JSON with beat timings and model information.
 
 ## Notes
-This repository currently focuses on file handling and beat analysis. Sequence generation is a placeholder for future development.
+- Dockerfile includes `ffmpeg` + `libsndfile1` for audio analysis (librosa).
+- Health endpoint: `GET /health` → `{ "ok": true }`

@@ -1,41 +1,40 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
   <meta charset="utf-8">
-  <title>xLights Sequence Generator</title>
+  <title>xLights Auto-Sequence (MVP)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
+    .card { border: 1px solid #ddd; padding: 1rem; border-radius: 8px; max-width: 720px; }
+    label { display:block; margin-top: 1rem; font-weight: 600; }
+    button { margin-top: 1rem; padding: .6rem 1rem; border-radius: 6px; border: 1px solid #444; background:#fff; cursor:pointer; }
+    pre { background:#fafafa; border:1px solid #eee; padding:1rem; border-radius:8px; overflow:auto; }
+  </style>
 </head>
 <body>
-  <h1>xLights Sequence Generator</h1>
-  <form id="upload-form" action="/generate" method="post" enctype="multipart/form-data">
-    <div>
-      <label for="xml">xlights_rgbeffect.xml</label>
-      <input type="file" name="xml" id="xml" accept=".xml" required>
-    </div>
-    <div>
-      <label for="audio">audio.mp3</label>
-      <input type="file" name="audio" id="audio" accept=".mp3,.wav,.m4a,.aac" required>
-    </div>
-    <fieldset>
-      <legend>BPM mode</legend>
-      <label><input type="radio" name="bpm_mode" value="auto" checked> Auto</label>
-      <label><input type="radio" name="bpm_mode" value="manual"> Manual</label>
-    </fieldset>
-    <div>
-      <label for="duration">Duration override (ms)</label>
-      <input type="number" name="duration" id="duration" min="0">
-    </div>
-    <div>
-      <label for="offset">Start offset (ms)</label>
-      <input type="number" name="offset" id="offset" min="0">
-    </div>
-    <div>
-      <label for="preset">Effect preset</label>
-      <select name="preset" id="preset">
-        <option value="default">Default</option>
-      </select>
-    </div>
-    <button type="submit">Generate</button>
-  </form>
-  <script src="{{ url_for('static', filename='main.js') }}"></script>
+  <h1>xLights Auto-Sequence</h1>
+  <div class="card">
+    <form id="genForm" enctype="multipart/form-data">
+      <label>Layout (xlights_rgbeffect.xml)
+        <input name="layout" type="file" accept=".xml" required>
+      </label>
+      <label>Audio File
+        <input name="audio" type="file" accept=".mp3,.wav,.m4a,.aac" required>
+      </label>
+      <label>Effect Preset
+        <select name="preset">
+          <option value="solid_pulse">Solid Pulse</option>
+          <option value="bars">Bars</option>
+        </select>
+      </label>
+      <button type="submit">Generate Sequence</button>
+    </form>
+  </div>
+
+  <h2>Result</h2>
+  <pre id="result">Waiting...</pre>
+
+  <script src="/static/main.js"></script>
 </body>
 </html>

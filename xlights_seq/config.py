@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY","devkey")
+    SECRET_KEY = os.environ.get("SECRET_KEY", "devkey")
     MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB
     UPLOAD_FOLDER = os.path.abspath("uploads")
     OUTPUT_FOLDER = os.path.abspath("generated")

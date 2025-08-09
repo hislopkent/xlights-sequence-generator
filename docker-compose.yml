@@ -1,6 +1,9 @@
+version: "3.9"
+
 services:
   xlights-seq:
-    build: .
+    image: hislopkent/xlights-sequence-generator:latest
+    container_name: xlights-seq
     ports:
       - "5000:5000"
     volumes:
@@ -12,7 +15,8 @@ services:
 
   watchtower:
     image: containrrr/watchtower
+    container_name: watchtower
+    restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: --interval 300 --label-enable
-    restart: unless-stopped
