@@ -48,11 +48,16 @@ def handle_exception(e):
 
 @app.get("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", version=app.config["VERSION"])
 
 @app.get("/health")
 def health():
     return jsonify(ok=True)
+
+
+@app.get("/version")
+def version():
+    return jsonify(version=app.config["VERSION"])
 
 @app.post("/generate")
 def generate():
