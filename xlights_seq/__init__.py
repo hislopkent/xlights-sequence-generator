@@ -1,26 +1,64 @@
+"""Main application blueprint for xLights sequence generation."""
+
 import os
-from werkzeug.utils import secure_filename
+import uuid
 from flask import Blueprint, render_template, request, jsonify, current_app
-from .utils import allowed_file
 
-main_bp = Blueprint('main', __name__)
+from .utils import secure_ext, path_in
 
-@main_bp.get('/')
+
+main_bp = Blueprint("main", __name__)
+
+
+@main_bp.get("/")
 def index():
-    return render_template('index.html')
+    """Render the upload form."""
 
-@main_bp.post('/generate')
+    return render_template("index.html")
+
+
+@main_bp.post("/generate")
 def generate():
-    uploads = current_app.config['UPLOAD_FOLDER']
-    saved = {}
-    xml = request.files.get('xml')
-    if xml and allowed_file(xml.filename, current_app.config['ALLOWED_XML']):
-        filename = secure_filename(xml.filename)
-        xml.save(os.path.join(uploads, filename))
-        saved['xml'] = filename
-    audio = request.files.get('audio')
-    if audio and allowed_file(audio.filename, current_app.config['ALLOWED_AUDIO']):
-        filename = secure_filename(audio.filename)
-        audio.save(os.path.join(uploads, filename))
-        saved['audio'] = filename
-    return jsonify(saved)
+    """Handle uploads of an xLights effect file and audio file.
+
+    The files are validated for correct extension and MIME type and then saved
+    into the configured upload folder. A short JSON response describing the
+    job is returned on success.
+    """
+
+    uploads = current_app.config["UPLOAD_FOLDER"]
+    xml = request.files.get("xml")
+    audio = request.files.get("audio")
+
+    if not xml or xml.filename == "":
+        return jsonify(ok=False, error="xml file required"), 400
+    if not audio or audio.filename == "":
+        return jsonify(ok=False, error="audio file required"), 400
+
+    xml_name = secure_ext(xml.filename, current_app.config["ALLOWED_XML"])
+    if not xml_name or xml.mimetype not in ("text/xml", "application/xml"):
+        return jsonify(ok=False, error="invalid xml"), 400
+
+    audio_name = secure_ext(audio.filename, current_app.config["ALLOWED_AUDIO"])
+    if not audio_name or not audio.mimetype.startswith("audio/"):
+        return jsonify(ok=False, error="invalid audio"), 400
+
+    max_size = current_app.config.get("MAX_CONTENT_LENGTH")
+    for file in (xml, audio):
+        if max_size and file.content_length and file.content_length > max_size:
+            return jsonify(ok=False, error="file too large"), 400
+
+    os.makedirs(uploads, exist_ok=True)
+    xml.save(path_in(uploads, xml_name))
+    audio.save(path_in(uploads, audio_name))
+
+    job_id = uuid.uuid4().hex
+    response = {
+        "ok": True,
+        "jobId": job_id,
+        "models": [],
+        "durationMs": 0,
+        "bpm": 0,
+    }
+    return jsonify(response)
+

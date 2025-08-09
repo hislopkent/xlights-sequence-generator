@@ -8,12 +8,31 @@
   <h1>xLights Sequence Generator</h1>
   <form id="upload-form" action="/generate" method="post" enctype="multipart/form-data">
     <div>
-      <label for="xml">Sequence XML</label>
-      <input type="file" name="xml" id="xml" accept=".xml">
+      <label for="xml">xlights_rgbeffect.xml</label>
+      <input type="file" name="xml" id="xml" accept=".xml" required>
     </div>
     <div>
-      <label for="audio">Audio File</label>
-      <input type="file" name="audio" id="audio" accept=".mp3,.wav,.m4a,.aac">
+      <label for="audio">audio.mp3</label>
+      <input type="file" name="audio" id="audio" accept=".mp3,.wav,.m4a,.aac" required>
+    </div>
+    <fieldset>
+      <legend>BPM mode</legend>
+      <label><input type="radio" name="bpm_mode" value="auto" checked> Auto</label>
+      <label><input type="radio" name="bpm_mode" value="manual"> Manual</label>
+    </fieldset>
+    <div>
+      <label for="duration">Duration override (ms)</label>
+      <input type="number" name="duration" id="duration" min="0">
+    </div>
+    <div>
+      <label for="offset">Start offset (ms)</label>
+      <input type="number" name="offset" id="offset" min="0">
+    </div>
+    <div>
+      <label for="preset">Effect preset</label>
+      <select name="preset" id="preset">
+        <option value="default">Default</option>
+      </select>
     </div>
     <button type="submit">Generate</button>
   </form>
