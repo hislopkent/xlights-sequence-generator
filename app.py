@@ -65,12 +65,33 @@ def generate():
     if not layout or not audio:
         return jsonify({"ok": False, "error": "Both layout XML and audio are required."}), 400
 
-    layout_ext = (layout.filename.rsplit(".", 1)[-1] or "").lower()
-    audio_ext = (audio.filename.rsplit(".", 1)[-1] or "").lower()
-    if layout_ext not in app.config["ALLOWED_XML"] or layout.mimetype not in ("text/xml", "application/xml"):
-        return jsonify({"ok": False, "error": "Unsupported layout file type."}), 400
-    if audio_ext not in app.config["ALLOWED_AUDIO"] or not audio.mimetype.startswith("audio/"):
-        return jsonify({"ok": False, "error": "Unsupported audio file type."}), 400
+    ALLOWED_XML = app.config["ALLOWED_XML"]
+    ALLOWED_AUDIO = app.config["ALLOWED_AUDIO"]
+
+    def _ok(name, allowed):
+        return "." in name and name.rsplit(".", 1)[1].lower() in allowed
+
+    if not _ok(layout.filename, ALLOWED_XML):
+        return jsonify(ok=False, error="Layout must be .xml"), 400
+    if not _ok(audio.filename, ALLOWED_AUDIO):
+        return jsonify(ok=False, error="Audio must be mp3/wav/m4a/aac"), 400
+
+    max_bytes = app.config["MAX_CONTENT_LENGTH"]
+    max_mb = max_bytes // (1024 * 1024)
+
+    def _size_ok(f):
+        f.stream.seek(0, os.SEEK_END)
+        size = f.stream.tell()
+        f.stream.seek(0)
+        return size <= max_bytes
+
+    if not _size_ok(layout):
+        return jsonify(ok=False, error=f"Layout file too large (max {max_mb}MB)."), 400
+    if not _size_ok(audio):
+        return jsonify(ok=False, error=f"Audio file too large (max {max_mb}MB)."), 400
+
+    layout_ext = layout.filename.rsplit(".", 1)[-1].lower()
+    audio_ext = audio.filename.rsplit(".", 1)[-1].lower()
 
     job = str(uuid.uuid4())
     xml_path = os.path.join(app.config["UPLOAD_FOLDER"], f"{job}-layout.xml")
