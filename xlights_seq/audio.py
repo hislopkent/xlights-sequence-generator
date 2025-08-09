@@ -1,5 +1,8 @@
 import librosa
 import numpy as np
+import os
+import subprocess
+import tempfile
 
 
 def analyze_beats(audio_path: str):
@@ -27,7 +30,33 @@ def analyze_beats(audio_path: str):
     """
 
     # Load mono for speed
-    y, sr = librosa.load(audio_path, mono=True)
+    try:
+        y, sr = librosa.load(audio_path, mono=True)
+    except Exception:
+        # Attempt to convert the input to a temporary 44.1kHz mono wav
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    audio_path,
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "44100",
+                    tmp_path,
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            y, sr = librosa.load(tmp_path, mono=True)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     # Beat tracking gives us the tempo and beat frame indices
     tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr, trim=True)
