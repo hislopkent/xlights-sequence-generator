@@ -1,6 +1,6 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from xlights_seq.generator import build_rgbeffects
+from xlights_seq.generator import build_rgbeffects, DOWNBEAT_COLOR, PALETTE
 from xlights_seq.parsers import ModelInfo
 
 
@@ -21,6 +21,9 @@ def test_build_rgbeffects_structure():
         layer = mdl.find("effectLayer")
         effects = layer.findall("effect")
         assert len(effects) == 2
-        assert effects[0].get("startMS") == "0" and effects[0].get("endMS") == "500"
+        assert effects[0].get("startMS") == "0" and effects[0].get("endMS") == "550"
         assert effects[1].get("startMS") == "500" and effects[1].get("endMS") == "1000"
         assert all(eff.get("type") == "On" for eff in effects)
+        colors = [e.find("./param[@name='Color1']").get("value") for e in effects]
+        assert colors[0] == DOWNBEAT_COLOR
+        assert colors[1] == PALETTE[1]

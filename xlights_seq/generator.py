@@ -13,6 +13,15 @@ PRESETS = {
     },
 }
 
+# rotating color palette applied per beat
+PALETTE = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"]
+
+# color used to accentuate downbeats
+DOWNBEAT_COLOR = "#FFFFFF"
+
+# interval in beats used to mark downbeats
+DOWNBEAT_INTERVAL = 4
+
 # presets that tend to render heavy effects; tiny models can swap them out
 HEAVY_PRESETS = {"meteor"}
 
@@ -62,13 +71,23 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
         layer = ET.SubElement(mdl, "effectLayer", name="Layer 1")
         for i, bt in enumerate(beat_times):
             start = int(bt * 1000)
-            end = int(
-                min(duration_ms, (beat_times[i + 1] * 1000))
-                if i + 1 < len(beat_times)
-                else duration_ms
-            )
+            if i + 1 < len(beat_times):
+                next_ms = int(beat_times[i + 1] * 1000)
+            else:
+                next_ms = duration_ms
+            end = next_ms
+
             eff_type = preset_cfg["type"]
             eff_params = preset_cfg.get("params", {}).copy()
+
+            # rotating color palette
+            color = PALETTE[i % len(PALETTE)]
+            is_downbeat = i % DOWNBEAT_INTERVAL == 0
+            if is_downbeat:
+                color = DOWNBEAT_COLOR
+                end = min(duration_ms, end + 50)
+            eff_params["Color1"] = color
+
             # tiny models get a simple "On" instead of heavy effects
             if (
                 preset in HEAVY_PRESETS
@@ -77,6 +96,7 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
             ):
                 eff_type = PRESETS["solid_pulse"]["type"]
                 eff_params = PRESETS["solid_pulse"]["params"].copy()
+                eff_params["Color1"] = color
             if preset == "bars":
                 bars = max(4, min(24, (m.strings or 8)))
                 eff_params["Bars"] = str(bars)
