@@ -22,12 +22,13 @@ def test_generate_includes_version(client, tmp_path, monkeypatch):
     test_client, app_module = client
     monkeypatch.setattr(
         app_module,
-        "analyze_beats",
+        "analyze_beats_plus",
         lambda path: {
             "bpm": 120.0,
             "duration_s": 1.0,
             "beat_times": [0.0, 0.5],
-            "sections": [],
+            "downbeat_times": [],
+            "section_times": [],
         },
     )
     layout = "<layout><model name='Tree' StringCount='1'/></layout>"
