@@ -1,0 +1,6 @@
+House Style Cheat Sheet
+-----------------------
+- Use CamelCase for model names.
+- Group names should be descriptive (e.g., RoofOutline, MegaTree).
+- Timing marks follow 10ms resolution.
+- Layout file xlights_rgbeffects.xml is read-only; do not overwrite.

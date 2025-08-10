@@ -1,0 +1,14 @@
+# Plan for the starter xLights sequence.
+# Model and group names should match those defined in xlights_rgbeffects.xml.
+sequence_name: Starter Sequence
+music: TBD
+models:
+  - ExampleModel
+  - ExampleGroup
+steps:
+  - time: 0
+    action: fade_in
+    targets: [ExampleModel]
+  - time: 5
+    action: sparkle
+    targets: [ExampleGroup]
