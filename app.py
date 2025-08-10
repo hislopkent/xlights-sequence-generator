@@ -114,8 +114,6 @@ def generate():
 
     if not _ok(layout.filename, ALLOWED_XML):
         return jsonify(ok=False, error="Layout must be .xml"), 400
-    if networks and not _ok(networks.filename, ALLOWED_XML):
-        return jsonify(ok=False, error="Networks must be .xml"), 400
     if not _ok(audio.filename, ALLOWED_AUDIO):
         return jsonify(ok=False, error="Audio must be mp3/wav/m4a/aac"), 400
 
@@ -132,8 +130,6 @@ def generate():
         return jsonify(ok=False, error=f"Layout file too large (max {max_mb}MB)."), 400
     if not _size_ok(audio):
         return jsonify(ok=False, error=f"Audio file too large (max {max_mb}MB)."), 400
-    if networks and not _size_ok(networks):
-        return jsonify(ok=False, error=f"Networks file too large (max {max_mb}MB)."), 400
 
     layout_ext = layout.filename.rsplit(".", 1)[-1].lower()
     audio_ext = audio.filename.rsplit(".", 1)[-1].lower()
@@ -148,8 +144,20 @@ def generate():
     layout_bytes = os.path.getsize(xml_path)
     audio_bytes = os.path.getsize(audio_path)
     extra = {"layout_bytes": layout_bytes, "audio_bytes": audio_bytes}
-    if networks:
-        networks_path = os.path.join(app.config["UPLOAD_FOLDER"], f"{job}-networks.xml")
+    if networks and networks.filename:
+        if not networks.filename.lower().endswith(".xml"):
+            return jsonify(ok=False, error="Networks must be .xml"), 400
+        if not _size_ok(networks):
+            return (
+                jsonify(
+                    ok=False,
+                    error=f"Networks file too large (max {max_mb}MB).",
+                ),
+                400,
+            )
+        networks_path = os.path.join(
+            app.config["UPLOAD_FOLDER"], f"{job}-networks.xml"
+        )
         networks.save(networks_path)
         extra["networks_bytes"] = os.path.getsize(networks_path)
     app.logger.info("generate_files", extra=extra)
@@ -207,8 +215,8 @@ def generate():
 
     job_dir = os.path.join(app.config["OUTPUT_FOLDER"], job)
     os.makedirs(job_dir, exist_ok=True)
-    out_xml = os.path.join(job_dir, "rgbeffects.xml")
-    write_rgbeffects(tree, out_xml)
+    rgbeffects_path = os.path.join(job_dir, "xlights_rgbeffects.xml")
+    write_rgbeffects(tree, rgbeffects_path)
     if networks_path:
         shutil.copy(networks_path, os.path.join(job_dir, "xlights_networks.xml"))
 
@@ -279,8 +287,12 @@ def download(job):
             except Exception:
                 pass
     if export_format == "rgbeffects_xml":
-        file_path = os.path.join(job_dir, "rgbeffects.xml")
-        return send_file(file_path, as_attachment=True, download_name="rgbeffects.xml")
+        file_path = os.path.join(job_dir, "xlights_rgbeffects.xml")
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name="xlights_rgbeffects.xml",
+        )
     zip_path = shutil.make_archive(job_dir, "zip", job_dir)
     return send_file(zip_path, as_attachment=True, download_name=f"xlights_{job}.zip")
 

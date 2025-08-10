@@ -6,7 +6,7 @@ const MAX_MB = 25;
 const ALLOWED_XML = ['text/xml', 'application/xml'];
 const ALLOWED_AUDIO = ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/aac', 'audio/m4a', 'audio/mp4'];
 const EXPORT_FORMAT_LABELS = {
-  rgbeffects_xml: 'rgbeffects.xml',
+  rgbeffects_xml: 'xlights_rgbeffects.xml',
   xsq: 'XSQ (single file)',
   xsqz: 'XSQZ (zip package)'
 };
