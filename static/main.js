@@ -61,12 +61,14 @@ form.addEventListener('submit', async (e) => {
     return;
   }
 
-  showMessage('Processing... (this can take a moment for large MP3s)');
-  spinner.style.display = 'block';
-  const fd = new FormData(form);
-  try {
-    const r = await fetch('/generate', { method: 'POST', body: fd });
-    const j = await r.json();
+    showMessage('Processing... (this can take a moment for large MP3s)');
+    spinner.style.display = 'block';
+    const fd = new FormData(form);
+    const selectedRecs = [...document.querySelectorAll('input[name="apply_rec"]:checked')].map(x=>x.value);
+    fd.append('selected_recommendations', JSON.stringify(selectedRecs));
+    try {
+      const r = await fetch('/generate', { method: 'POST', body: fd });
+      const j = await r.json();
     if (!j.ok) {
       showError(j.error);
       return;
@@ -122,6 +124,8 @@ const searchBox = document.getElementById('searchBox');
 const showGroups = document.getElementById('showGroups');
 const showModels = document.getElementById('showModels');
 const layoutInput = document.querySelector('input[name="layout"]');
+const btnRecs = document.getElementById('btnRecs');
+const recsList = document.getElementById('recsList');
 
 let layoutTree = null;
 
@@ -163,8 +167,23 @@ async function inspectLayout(file) {
 layoutInput?.addEventListener('change', () => {
   if (layoutInput.files?.[0]) inspectLayout(layoutInput.files[0]);
 });
-[searchBox, showGroups, showModels].forEach((el) =>
-  el?.addEventListener('input', () => {
-    if (layoutTree) modelTree.innerHTML = renderTree(layoutTree);
-  })
-);
+  [searchBox, showGroups, showModels].forEach((el) =>
+    el?.addEventListener('input', () => {
+      if (layoutTree) modelTree.innerHTML = renderTree(layoutTree);
+    })
+  );
+
+btnRecs?.addEventListener('click', async ()=>{
+  if(!layoutInput?.files?.[0]) { recsList.textContent="Upload a layout first."; return; }
+  const fd = new FormData(); fd.append('layout', layoutInput.files[0]);
+  const r = await fetch('/recommend-groups', {method:'POST', body:fd});
+  const j = await r.json();
+  if(!j.ok){ recsList.textContent = 'Failed: ' + (j.error||''); return; }
+  if(j.count===0){ recsList.textContent = 'No suggestions found.'; return; }
+  recsList.innerHTML = j.recommendations.map((r,i)=>`
+    <div style="margin:.5rem 0;padding:.5rem;border:1px solid #eee;border-radius:6px">
+      <label><input type="checkbox" name="apply_rec" value="${r.name}" checked> <b>${r.name}</b> <i>(${r.reason})</i></label>
+      <div><small>${r.members.join(', ')}</small></div>
+    </div>
+  `).join('');
+});
