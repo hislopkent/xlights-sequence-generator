@@ -11,7 +11,7 @@ def test_build_rgbeffects_structure():
     root = tree.getroot()
     assert root.tag == "xrgb"
 
-    timing = root.find("timing[@name='AutoBeat']")
+    timing = root.find("timing[@name='Beats']")
     markers = timing.findall("marker")
     assert [m.get("timeMS") for m in markers] == ["0", "500"]
 

@@ -19,7 +19,7 @@ PALETTE = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"]
 # color used to accentuate downbeats
 DOWNBEAT_COLOR = "#FFFFFF"
 
-# interval in beats used to mark downbeats
+# interval in beats used to mark downbeats when explicit downbeat times are not provided
 DOWNBEAT_INTERVAL = 4
 
 # presets that tend to render heavy effects; tiny models can swap them out
@@ -29,7 +29,22 @@ HEAVY_PRESETS = {"meteor"}
 SMALL_MODEL_NODES = 25
 
 
-def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None, palette=None):
+def add_timing_track(root, name, times_s):
+    """Create a timing track with a list of marker times in seconds."""
+    track = ET.SubElement(root, "timing", name=name)
+    for tsec in times_s:
+        ET.SubElement(track, "marker", timeMS=str(int(round(tsec * 1000))))
+
+
+def build_rgbeffects(
+    models,
+    beat_times,
+    duration_ms,
+    preset: str,
+    downbeat_times=None,
+    section_times=None,
+    palette=None,
+):
     """Generate an xLights RGB effects file using a preset.
 
     Parameters
@@ -42,29 +57,26 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
         Total duration of the song in milliseconds.
     preset : str
         Name of the effect preset to apply.
-    sections : list[dict], optional
-        Optional list of section markers as returned by ``analyze_beats``.
-        Each item must contain ``time`` (seconds) and ``label``.
+    downbeat_times : list[float], optional
+        Optional list of downbeat timestamps in seconds. If provided, a
+        "Downbeats" timing track will be added and downbeat coloring will use
+        these times instead of the fixed interval.
+    section_times : list[float], optional
+        Optional list of section boundary timestamps in seconds. A "Sections"
+        timing track will be added if present.
     palette : list[str], optional
         Optional list of hex colors (e.g. ``"#FF0000"``) used for Color1 cycling.
         If not provided, falls back to the module ``PALETTE``.
     """
 
     root = ET.Element("xrgb", version="2024.05", showDir=".")
-    # timing track for beats
-    timing = ET.SubElement(root, "timing", name="AutoBeat")
-    for bt in beat_times:
-        ET.SubElement(timing, "marker", timeMS=str(int(bt * 1000)))
 
-    # optional secondary timing track for musical sections
-    if sections:
-        timing_sec = ET.SubElement(root, "timing", name="Sections")
-        for sec in sections:
-            attrs = {"timeMS": str(int(sec["time"] * 1000))}
-            label = sec.get("label")
-            if label:
-                attrs["label"] = label
-            ET.SubElement(timing_sec, "marker", **attrs)
+    # timing tracks
+    add_timing_track(root, "Beats", beat_times)
+    if downbeat_times:
+        add_timing_track(root, "Downbeats", downbeat_times)
+    if section_times:
+        add_timing_track(root, "Sections", section_times)
 
     preset_cfg = PRESETS.get(preset, PRESETS["solid_pulse"])
 
@@ -86,7 +98,10 @@ def build_rgbeffects(models, beat_times, duration_ms, preset: str, sections=None
 
             # rotating color palette
             color = active_palette[i % len(active_palette)]
-            is_downbeat = i % DOWNBEAT_INTERVAL == 0
+            if downbeat_times:
+                is_downbeat = any(abs(bt - dt) < 1e-3 for dt in downbeat_times)
+            else:
+                is_downbeat = i % DOWNBEAT_INTERVAL == 0
             if is_downbeat:
                 color = DOWNBEAT_COLOR
                 end = min(duration_ms, end + 50)
