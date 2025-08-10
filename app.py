@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file, g
-import os, uuid, json, shutil, time, re
+import os, uuid, json, shutil, time, re, zipfile
 from werkzeug.exceptions import RequestEntityTooLarge
 from xlights_seq.config import Config
 from xlights_seq.parsers import (
@@ -10,8 +10,7 @@ from xlights_seq.parsers import (
 )
 from xlights_seq.recommend import recommend_groups
 from xlights_seq.audio import analyze_beats_plus
-from xlights_seq.generator import build_rgbeffects, write_rgbeffects
-from xlights_seq.xsq_package import write_xsq, write_xsqz
+from xlights_seq.xsq_writer import build_xsq, write_xsq
 from xlights_seq.versioning import build_version
 from logger import get_json_logger
 
@@ -137,7 +136,9 @@ def generate():
     audio = request.files.get("audio")
     networks = request.files.get("networks")
     preset = request.form.get("preset", "solid_pulse")
-    export_format = request.form.get("export_format", "rgbeffects_xml")
+    export_format = request.form.get("export_format", "xsq")
+    export_title = (request.form.get("package_title") or "My Sequence").strip()
+    safe_title = "".join(ch for ch in export_title if ch not in "\\/:*?\"<>|").strip() or "My Sequence"
     palette_str = request.form.get("palette", "").strip()
     palette = None
     if palette_str:
@@ -240,44 +241,42 @@ def generate():
         {"time": float(t), "label": f"Section {i+1}"}
         for i, t in enumerate(section_times[1:], start=2)
     ]
-    tree = build_rgbeffects(
+    xsq_tree = build_xsq(
         models,
         beat_times,
         duration_ms,
-        preset,
         downbeat_times=downbeat_times,
         section_times=section_times,
-        palette=palette,
+        preset=preset,
     )
     bpm_val = analysis.get("bpm")
 
     job_dir = os.path.join(app.config["OUTPUT_FOLDER"], job)
     os.makedirs(job_dir, exist_ok=True)
-    rgbeffects_path = os.path.join(job_dir, "xlights_rgbeffects.xml")
-    write_rgbeffects(tree, rgbeffects_path)
+
+    xsq_path = os.path.join(job_dir, f"{safe_title}.xsq")
+    write_xsq(xsq_tree, xsq_path)
+
+    layout_canonical = os.path.join(job_dir, "xlights_rgbeffects.xml")
+    shutil.copyfile(xml_path, layout_canonical)
     if networks_path:
         shutil.copy(networks_path, os.path.join(job_dir, "xlights_networks.xml"))
 
-    base = f"{job}-{APP_VERSION}"
-    download_name = f"{base}-xlights_rgbeffects.xml"
-    download_path = os.path.join(job_dir, download_name)
-
-    if export_format == "xsq":
-        xsq_path = os.path.join(job_dir, f"{base}.xsq")
-        write_xsq(xsq_path, rgbeffects_path)
-        download_name, download_path = os.path.basename(xsq_path), xsq_path
-    elif export_format == "xsqz":
-        xsqz_path = os.path.join(job_dir, f"{base}.xsqz")
-        media_list = [audio_path] if os.path.exists(audio_path) else []
-        write_xsqz(
-            xsqz_path,
-            rgbeffects_path,
-            networks_path=networks_path,
-            media_files=media_list,
-        )
+    download_name = os.path.basename(xsq_path)
+    download_path = xsq_path
+    if export_format == "xsqz":
+        xsqz_path = os.path.join(job_dir, f"{safe_title}.xsqz")
+        with zipfile.ZipFile(xsqz_path, "w", zipfile.ZIP_DEFLATED) as z:
+            z.write(xsq_path, arcname=os.path.basename(xsq_path))
+            z.write(layout_canonical, arcname="xlights_rgbeffects.xml")
+            if networks_path:
+                z.write(networks_path, arcname="xlights_networks.xml")
+            if os.path.exists(audio_path):
+                z.write(
+                    audio_path,
+                    arcname=os.path.join("media", os.path.basename(audio_path)),
+                )
         download_name, download_path = os.path.basename(xsqz_path), xsqz_path
-    else:
-        shutil.copy(rgbeffects_path, download_path)
 
     with open(os.path.join(job_dir, "metadata.json"), "w", encoding="utf-8") as f:
         json.dump(
@@ -288,6 +287,8 @@ def generate():
                 "models": [m.__dict__ for m in models],
                 "preset": preset,
                 "export_format": export_format,
+                "title": export_title,
+                "safe_title": safe_title,
                 "has_networks": bool(networks_path),
                 "has_media": os.path.exists(audio_path),
                 "version": APP_VERSION,
@@ -327,6 +328,7 @@ def generate():
             "totalModelCount": total_model_count,
             "version": APP_VERSION,
             "exportFormat": export_format,
+            "title": export_title,
             "downloadUrl": f"/download/{job}/{download_name}",
         }
     )
@@ -367,12 +369,15 @@ def download(job):
     job_dir = os.path.join(app.config["OUTPUT_FOLDER"], job)
     if not os.path.isdir(job_dir):
         return ("Not found", 404)
-    export_format = "rgbeffects_xml"
+    export_format = "xsq"
+    safe_title = "My Sequence"
     meta_path = os.path.join(job_dir, "metadata.json")
     if os.path.isfile(meta_path):
         with open(meta_path, "r", encoding="utf-8") as f:
             try:
-                export_format = json.load(f).get("export_format", export_format)
+                meta = json.load(f)
+                export_format = meta.get("export_format", export_format)
+                safe_title = meta.get("safe_title", safe_title)
             except Exception:
                 pass
     if export_format == "rgbeffects_xml":
@@ -381,6 +386,20 @@ def download(job):
             file_path,
             as_attachment=True,
             download_name="xlights_rgbeffects.xml",
+        )
+    if export_format == "xsq":
+        file_path = os.path.join(job_dir, f"{safe_title}.xsq")
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=f"{safe_title}.xsq",
+        )
+    if export_format == "xsqz":
+        file_path = os.path.join(job_dir, f"{safe_title}.xsqz")
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=f"{safe_title}.xsqz",
         )
     zip_path = shutil.make_archive(job_dir, "zip", job_dir)
     return send_file(zip_path, as_attachment=True, download_name=f"xlights_{job}.zip")
