@@ -41,3 +41,23 @@ def test_custom_palette_overrides_default():
 
     assert colors[1:] == ["#222222", "#333333", "#111111"]
 
+
+def test_section_boundary_changes_effect():
+    models = [ModelInfo(name="m1")]
+    beat_times = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5]
+    duration_ms = 4000
+
+    tree = build_rgbeffects(
+        models,
+        beat_times,
+        duration_ms,
+        preset="solid_pulse",
+        section_times=[2.0],
+    )
+    root = tree.getroot()
+    effects = root.find("./model").findall(".//effect")
+    types = [e.get("type") for e in effects]
+
+    assert types[:4] == ["On"] * 4
+    assert types[4:] == ["Shockwave"] * 4
+
