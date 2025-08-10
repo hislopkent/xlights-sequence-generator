@@ -262,8 +262,15 @@ def generate():
         {"time": float(t), "label": f"Section {i+1}"}
         for i, t in enumerate(section_times[1:], start=2)
     ]
-
-    tree = build_rgbeffects(models, beat_times, duration_ms, preset, sections, palette)
+    tree = build_rgbeffects(
+        models,
+        beat_times,
+        duration_ms,
+        preset,
+        downbeat_times,
+        section_times,
+        palette,
+    )
 
     job_dir = os.path.join(app.config["OUTPUT_FOLDER"], job)
     os.makedirs(job_dir, exist_ok=True)
