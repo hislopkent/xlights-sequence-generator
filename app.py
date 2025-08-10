@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file, g
-import os, uuid, json, shutil, time, math, threading, re
-import librosa
+import os, uuid, json, shutil, time, re
 from werkzeug.exceptions import RequestEntityTooLarge
 from xlights_seq.config import Config
 from xlights_seq.parsers import parse_models, parse_tree, flatten_models
@@ -120,8 +119,6 @@ def generate():
     audio = request.files.get("audio")
     networks = request.files.get("networks")
     preset = request.form.get("preset", "solid_pulse")
-    manual_bpm = float(request.form.get("manual_bpm") or 0) or None
-    start_offset_ms = int(request.form.get("start_offset_ms") or 0)
     export_format = request.form.get("export_format", "rgbeffects_xml")
     palette_str = request.form.get("palette", "").strip()
     palette = None
@@ -205,59 +202,11 @@ def generate():
     except Exception as e:
         return jsonify({"ok": False, "error": f"Failed to parse XML: {e}"}), 400
 
-    result = {}
-
-    def _worker():
-        try:
-            result["analysis"] = analyze_beats_plus(audio_path)
-        except Exception as e:
-            result["error"] = e
-
-    t = threading.Thread(target=_worker)
-    t.start()
-    t.join(app.config["ANALYSIS_TIMEOUT"])
-
-    if t.is_alive():
-        app.logger.error(
-            "analysis_timeout",
-            extra={"path": request.path, "ip": request.remote_addr},
-        )
-        try:
-            duration_s = float(librosa.get_duration(path=audio_path))
-        except Exception as e:
-            return jsonify({"ok": False, "error": f"Failed to analyze audio: {e}"}), 400
-        bpm_val = 120.0
-        period_s = 60.0 / bpm_val
-        total = int(math.ceil(duration_s / period_s))
-        beat_times = [i * period_s for i in range(total)]
-        sections = []
-        section_times = []
-        downbeat_times = []
-        analysis = {"bpm": bpm_val}
-    else:
-        if "error" in result:
-            return jsonify({"ok": False, "error": f"Failed to analyze audio: {result['error']}"}), 400
-        analysis = result["analysis"]
-        duration_s = float(analysis["duration_s"])
-        section_times = analysis.get("section_times", [])
-        downbeat_times = analysis.get("downbeat_times", [])
-        if manual_bpm:
-            period_s = 60.0 / manual_bpm
-            total = int(math.ceil(duration_s / period_s))
-            beat_times = [i * period_s for i in range(total)]
-            bpm_val = manual_bpm
-        else:
-            beat_times = analysis["beat_times"]
-            bpm_val = analysis.get("bpm")
-
-    duration_ms = int(duration_s * 1000)
-    beat_times = [max(0.0, (t * 1000 + start_offset_ms) / 1000.0) for t in beat_times]
-    downbeat_times = [
-        max(0.0, (t * 1000 + start_offset_ms) / 1000.0) for t in downbeat_times
-    ]
-    section_times = [
-        max(0.0, (t * 1000 + start_offset_ms) / 1000.0) for t in section_times
-    ]
+    analysis = analyze_beats_plus(audio_path)
+    duration_ms = int(analysis["duration_s"] * 1000)
+    beat_times = analysis["beat_times"]
+    downbeat_times = analysis.get("downbeat_times", [])
+    section_times = analysis.get("section_times", [])
     sections = [
         {"time": float(t), "label": f"Section {i+1}"}
         for i, t in enumerate(section_times[1:], start=2)
@@ -267,10 +216,11 @@ def generate():
         beat_times,
         duration_ms,
         preset,
-        downbeat_times,
-        section_times,
-        palette,
+        downbeat_times=downbeat_times,
+        section_times=section_times,
+        palette=palette,
     )
+    bpm_val = analysis.get("bpm")
 
     job_dir = os.path.join(app.config["OUTPUT_FOLDER"], job)
     os.makedirs(job_dir, exist_ok=True)
@@ -312,6 +262,8 @@ def generate():
                 "has_networks": bool(networks_path),
                 "has_media": os.path.exists(audio_path),
                 "version": APP_VERSION,
+                "downbeat_times": downbeat_times,
+                "section_times": section_times,
             },
             f,
             indent=2,
