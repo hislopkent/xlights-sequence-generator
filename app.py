@@ -6,6 +6,7 @@ from xlights_seq.config import Config
 from xlights_seq.parsers import parse_models
 from xlights_seq.audio import analyze_beats
 from xlights_seq.generator import build_rgbeffects, write_rgbeffects
+from xlights_seq.xsq_package import write_xsq, write_xsqz
 from logger import get_json_logger
 
 app = Flask(__name__)
@@ -193,6 +194,7 @@ def generate():
         total = int(math.ceil(duration_s / period_s))
         beat_times = [i * period_s for i in range(total)]
         sections = []
+        analysis = {"bpm": bpm_val}
     else:
         if "error" in result:
             return jsonify({"ok": False, "error": f"Failed to analyze audio: {result['error']}"}), 400
@@ -219,19 +221,39 @@ def generate():
     write_rgbeffects(tree, rgbeffects_path)
     if networks_path:
         shutil.copy(networks_path, os.path.join(job_dir, "xlights_networks.xml"))
+    download_name = "xlights_rgbeffects.xml"
+    download_path = rgbeffects_path
+
+    if export_format == "xsq":
+        xsq_path = os.path.join(job_dir, f"{job}.xsq")
+        write_xsq(xsq_path, rgbeffects_path)
+        download_name, download_path = os.path.basename(xsq_path), xsq_path
+    elif export_format == "xsqz":
+        xsqz_path = os.path.join(job_dir, f"{job}.xsqz")
+        media_list = [audio_path] if os.path.exists(audio_path) else []
+        write_xsqz(
+            xsqz_path,
+            rgbeffects_path,
+            networks_path=networks_path,
+            media_files=media_list,
+        )
+        download_name, download_path = os.path.basename(xsqz_path), xsqz_path
 
     with open(os.path.join(job_dir, "metadata.json"), "w", encoding="utf-8") as f:
-        json.dump({
-            "job": job,
-            "bpm": bpm_val,
-            "durationMs": duration_ms,
-            "models": [m.__dict__ for m in models],
-          "preset": preset,
-          "manual_bpm": manual_bpm,
-          "start_offset_ms": start_offset_ms,
-          "export_format": export_format,
-          "has_networks": bool(networks_path)
-          }, f, indent=2)
+        json.dump(
+            {
+                "job": job,
+                "bpm": analysis.get("bpm"),
+                "durationMs": duration_ms,
+                "models": [m.__dict__ for m in models],
+                "preset": preset,
+                "export_format": export_format,
+                "has_networks": bool(networks_path),
+                "has_media": os.path.exists(audio_path),
+            },
+            f,
+            indent=2,
+        )
 
     with open(os.path.join(job_dir, "preview.json"), "w", encoding="utf-8") as f:
         json.dump({"beatTimes": beat_times, "sections": sections}, f)
@@ -244,15 +266,12 @@ def generate():
         {
             "ok": True,
             "jobId": job,
-            "bpm": bpm_val,
-            "manualBpm": manual_bpm,
-            "durationMs": duration_ms,
+            "bpm": analysis.get("bpm"),
             "modelCount": len(models),
-            "modelNames": [m.name for m in models],
-              "downloadUrl": f"/download/{job}",
-              "exportFormat": export_format,
-          }
-      )
+            "exportFormat": export_format,
+            "downloadUrl": f"/download/{job}/{download_name}",
+        }
+    )
 
 
 @app.get("/preview.json")
@@ -271,6 +290,16 @@ def preview():
             "beatTimes": data.get("beatTimes", []),
             "sections": data.get("sections", []),
         }
+    )
+
+
+@app.get("/download/<job>/<name>")
+def download_artifact(job, name):
+    path = os.path.join(app.config["OUTPUT_FOLDER"], job, name)
+    return (
+        send_file(path, as_attachment=True, download_name=name)
+        if os.path.isfile(path)
+        else ("Not found", 404)
     )
 
 @app.get("/download/<job>")
