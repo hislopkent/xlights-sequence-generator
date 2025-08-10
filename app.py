@@ -2,7 +2,13 @@ from flask import Flask, render_template, request, jsonify, send_file, g
 import os, uuid, json, shutil, time, re
 from werkzeug.exceptions import RequestEntityTooLarge
 from xlights_seq.config import Config
-from xlights_seq.parsers import parse_models, parse_tree, flatten_models
+from xlights_seq.parsers import (
+    parse_models,
+    parse_tree,
+    flatten_models,
+    parse_tree_with_index,
+)
+from xlights_seq.recommend import recommend_groups
 from xlights_seq.audio import analyze_beats_plus
 from xlights_seq.generator import build_rgbeffects, write_rgbeffects
 from xlights_seq.xsq_package import write_xsq, write_xsqz
@@ -109,6 +115,18 @@ def inspect_layout():
         }
 
     return jsonify(ok=True, modelCount=len(models), tree=to_dict(tree))
+
+
+@app.post("/recommend-groups")
+def recommend_groups_api():
+    layout = request.files.get("layout")
+    if not layout or not layout.filename.lower().endswith(".xml"):
+        return jsonify(ok=False, error="Upload a layout .xml"), 400
+    tmp = os.path.join(app.config["UPLOAD_FOLDER"], f"rec-{uuid.uuid4()}.xml")
+    layout.save(tmp)
+    tree, _ = parse_tree_with_index(tmp)
+    recs = recommend_groups(tree)
+    return jsonify(ok=True, recommendations=recs, count=len(recs))
 
 @app.post("/generate")
 def generate():
