@@ -3,7 +3,7 @@ import os, uuid, json, shutil, time, math, threading, re
 import librosa
 from werkzeug.exceptions import RequestEntityTooLarge
 from xlights_seq.config import Config
-from xlights_seq.parsers import parse_models
+from xlights_seq.parsers import parse_models, parse_tree, flatten_models
 from xlights_seq.audio import analyze_beats
 from xlights_seq.generator import build_rgbeffects, write_rgbeffects
 from xlights_seq.xsq_package import write_xsq, write_xsqz
@@ -84,6 +84,28 @@ def health():
 @app.get("/version")
 def version():
     return jsonify(version=app.config["VERSION"])
+
+
+@app.post("/inspect-layout")
+def inspect_layout():
+    layout = request.files.get("layout")
+    if not layout or not layout.filename.lower().endswith(".xml"):
+        return jsonify(ok=False, error="Upload a layout .xml"), 400
+    tmp = os.path.join(app.config["UPLOAD_FOLDER"], f"inspect-{uuid.uuid4()}.xml")
+    layout.save(tmp)
+    tree = parse_tree(tmp)
+    models = flatten_models(tree)
+
+    def to_dict(n):
+        return {
+            "name": n.name,
+            "type": n.type,
+            "strings": n.strings,
+            "nodes": n.nodes,
+            "children": [to_dict(c) for c in n.children],
+        }
+
+    return jsonify(ok=True, modelCount=len(models), tree=to_dict(tree))
 
 @app.post("/generate")
 def generate():
