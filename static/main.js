@@ -25,7 +25,7 @@ function showResult(j) {
   out.className = 'result-panel';
   out.innerHTML = `
     <div><b>Export:</b> ${j.exportFormat}</div>
-    <div><b>BPM:</b> ${j.bpm ?? "auto/fallback"}</div>
+    <div><b>BPM:</b> ${j.bpm ?? "auto/fallback"} · v${j.version ?? "unknown"}</div>
     <div><b>Models:</b> ${j.modelCount}</div>
     <p><a href="${j.downloadUrl}" download>Download file</a></p>
   `;

@@ -78,7 +78,7 @@ def handle_exception(e):
 
 @app.get("/")
 def index():
-    return render_template("index.html", version=app.config["VERSION"])
+    return render_template("index.html")
 
 @app.get("/health")
 def health():
@@ -309,6 +309,7 @@ def generate():
             "ok": True,
             "jobId": job,
             "bpm": analysis.get("bpm"),
+            "version": APP_VERSION,
             "modelCount": len(models),
             "exportFormat": export_format,
             "downloadUrl": f"/download/{job}/{download_name}",
