@@ -258,15 +258,17 @@ def generate():
     write_rgbeffects(tree, rgbeffects_path)
     if networks_path:
         shutil.copy(networks_path, os.path.join(job_dir, "xlights_networks.xml"))
-    download_name = "xlights_rgbeffects.xml"
-    download_path = rgbeffects_path
+
+    base = f"{job}-{APP_VERSION}"
+    download_name = f"{base}-xlights_rgbeffects.xml"
+    download_path = os.path.join(job_dir, download_name)
 
     if export_format == "xsq":
-        xsq_path = os.path.join(job_dir, f"{job}.xsq")
+        xsq_path = os.path.join(job_dir, f"{base}.xsq")
         write_xsq(xsq_path, rgbeffects_path)
         download_name, download_path = os.path.basename(xsq_path), xsq_path
     elif export_format == "xsqz":
-        xsqz_path = os.path.join(job_dir, f"{job}.xsqz")
+        xsqz_path = os.path.join(job_dir, f"{base}.xsqz")
         media_list = [audio_path] if os.path.exists(audio_path) else []
         write_xsqz(
             xsqz_path,
@@ -275,6 +277,8 @@ def generate():
             media_files=media_list,
         )
         download_name, download_path = os.path.basename(xsqz_path), xsqz_path
+    else:
+        shutil.copy(rgbeffects_path, download_path)
 
     with open(os.path.join(job_dir, "metadata.json"), "w", encoding="utf-8") as f:
         json.dump(
