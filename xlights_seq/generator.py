@@ -29,6 +29,18 @@ HEAVY_PRESETS = {"meteor"}
 SMALL_MODEL_NODES = 25
 
 
+def choose_effect_for(name: str):
+    """Select a basic effect type and parameters based on model name heuristics."""
+    n = name.lower()
+    if "mega" in n or "tree" in n:
+        return ("Butterfly", {"Color1": "#00FFFF"})
+    if "matrix" in n or "panel" in n:
+        return ("Bars", {"Bars": "12"})
+    if "arch" in n:
+        return ("Waves", {"Color1": "#FF00FF"})
+    return ("On", {"Color1": "#FFFFFF"})
+
+
 def add_timing_track(root, name, times_s):
     """Create a timing track with a list of marker times in seconds."""
     track = ET.SubElement(root, "timing", name=name)
@@ -85,6 +97,7 @@ def build_rgbeffects(
     for m in models:
         mdl = ET.SubElement(root, "model", name=m.name)
         layer = ET.SubElement(mdl, "effectLayer", name="Layer 1")
+        base_type, base_params = choose_effect_for(m.name)
         for i, bt in enumerate(beat_times):
             start = int(bt * 1000)
             if i + 1 < len(beat_times):
@@ -93,8 +106,14 @@ def build_rgbeffects(
                 next_ms = duration_ms
             end = next_ms
 
-            eff_type = preset_cfg["type"]
-            eff_params = preset_cfg.get("params", {}).copy()
+            # start with routing defaults
+            eff_type = base_type
+            eff_params = base_params.copy()
+
+            # fall back to preset when routing gives default effect
+            if eff_type == "On" and eff_params.get("Color1") == "#FFFFFF":
+                eff_type = preset_cfg["type"]
+                eff_params.update(preset_cfg.get("params", {}))
 
             # rotating color palette
             color = active_palette[i % len(active_palette)]
@@ -109,14 +128,16 @@ def build_rgbeffects(
 
             # tiny models get a simple "On" instead of heavy effects
             if (
-                preset in HEAVY_PRESETS
+                eff_type == preset_cfg["type"]
+                and preset in HEAVY_PRESETS
                 and m.nodes is not None
                 and m.nodes < SMALL_MODEL_NODES
             ):
                 eff_type = PRESETS["solid_pulse"]["type"]
                 eff_params = PRESETS["solid_pulse"]["params"].copy()
                 eff_params["Color1"] = color
-            if preset == "bars":
+
+            if eff_type == "Bars":
                 bars = max(4, min(24, (m.strings or 8)))
                 eff_params["Bars"] = str(bars)
 
