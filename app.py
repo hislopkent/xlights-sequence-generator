@@ -401,8 +401,21 @@ def download(job):
             as_attachment=True,
             download_name=f"{safe_title}.xsqz",
         )
-    zip_path = shutil.make_archive(job_dir, "zip", job_dir)
-    return send_file(zip_path, as_attachment=True, download_name=f"xlights_{job}.zip")
+    out_zip = shutil.make_archive(job_dir, "zip", job_dir)
+    try:
+        with zipfile.ZipFile(out_zip, "r") as z:
+            names = set(z.namelist())
+            root = f"{safe_title}/"
+            assert any(n.startswith(root) for n in names), "Package missing root folder"
+            assert (
+                f"{safe_title}/xlights_rgbeffects.xml" in names
+            ), "Missing layout file in package"
+            assert (
+                f"{safe_title}/{safe_title}.xsq" in names
+            ), "Missing XSQ sequence in package"
+    except AssertionError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    return send_file(out_zip, as_attachment=True, download_name=f"xlights_{job}.zip")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
