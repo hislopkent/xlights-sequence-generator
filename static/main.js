@@ -22,28 +22,13 @@ function showMessage(msg) {
 }
 
 function showResult(j) {
-  const exportLabel = EXPORT_FORMAT_LABELS[j.exportFormat] || j.exportFormat;
-  const minutes = Math.floor(j.durationMs / 60000);
-  const seconds = Math.floor((j.durationMs % 60000) / 1000)
-    .toString()
-    .padStart(2, '0');
-  const models = j.modelNames || [];
-  const firstTen = models.slice(0, 10);
-  let modelText = firstTen.join(', ');
-  if (models.length > 10) {
-    modelText += ` +${models.length - 10} more`;
-  }
-  const downloadUrl = location.origin + j.downloadUrl;
   out.className = 'result-panel';
   out.innerHTML = `
-      <p><strong>Export format:</strong> ${exportLabel}</p>
-      <p><strong>Detected BPM:</strong> ${j.bpm ?? 'n/a'}</p>
-      <p><strong>Manual BPM:</strong> ${j.manualBpm ?? 'n/a'}</p>
-      <p><strong>Duration:</strong> ${minutes}:${seconds}</p>
-      <p><strong>Models (${j.modelCount}):</strong> ${modelText}</p>
-      <a class="download-btn" href="${downloadUrl}" download>Download</a>
-    `;
-    renderPreview(j.jobId, j.durationMs);
+    <div><b>Export:</b> ${j.exportFormat}</div>
+    <div><b>BPM:</b> ${j.bpm ?? "auto/fallback"}</div>
+    <div><b>Models:</b> ${j.modelCount}</div>
+    <p><a href="${j.downloadUrl}" download>Download file</a></p>
+  `;
 }
 
 form.addEventListener('submit', async (e) => {
@@ -78,7 +63,7 @@ form.addEventListener('submit', async (e) => {
     const r = await fetch('/generate', { method: 'POST', body: fd });
     const j = await r.json();
     if (!j.ok) {
-      showError(j.error || 'Unknown');
+      showError(j.error);
       return;
     }
     showResult(j);
