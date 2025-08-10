@@ -9,6 +9,8 @@ from xlights_seq.generator import build_rgbeffects, write_rgbeffects
 from xlights_seq.xsq_package import write_xsq, write_xsqz
 from logger import get_json_logger
 
+OFFLINE = os.environ.get("OFFLINE", "1") == "1"
+
 app = Flask(__name__)
 app.config.from_object(Config)
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
@@ -41,6 +43,15 @@ def log_request_end(response):
             },
         )
     return response
+
+
+@app.after_request
+def no_tracking(resp):
+    # no external beacons; tighten headers
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
 
 
 @app.errorhandler(RequestEntityTooLarge)
