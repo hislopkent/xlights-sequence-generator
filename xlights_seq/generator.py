@@ -92,6 +92,20 @@ def build_rgbeffects(
 
     preset_cfg = PRESETS.get(preset, PRESETS["solid_pulse"])
 
+    # pre-compute downbeat times and section start indices
+    downbeat_ms = (
+        [int(dt * 1000) for dt in downbeat_times]
+        if downbeat_times
+        else [int(beat_times[i] * 1000) for i in range(len(beat_times)) if i % DOWNBEAT_INTERVAL == 0]
+    )
+    section_indices = []
+    if section_times:
+        for st in section_times:
+            for idx, bt in enumerate(beat_times):
+                if bt + 1e-3 >= st:  # first beat at or after the section boundary
+                    section_indices.append(idx)
+                    break
+
     # simple per-beat effect per model
     active_palette = palette or PALETTE
     for m in models:
@@ -117,13 +131,21 @@ def build_rgbeffects(
 
             # rotating color palette
             color = active_palette[i % len(active_palette)]
-            if downbeat_times:
-                is_downbeat = any(abs(bt - dt) < 1e-3 for dt in downbeat_times)
-            else:
-                is_downbeat = i % DOWNBEAT_INTERVAL == 0
+
+            # determine if this effect window contains a downbeat
+            is_downbeat = any(start <= db < end for db in downbeat_ms)
             if is_downbeat:
                 color = DOWNBEAT_COLOR
                 end = min(duration_ms, end + 50)
+
+            # adjust for section boundaries
+            in_section_measure = any(
+                si <= i < si + DOWNBEAT_INTERVAL for si in section_indices
+            )
+            if in_section_measure:
+                eff_type = "Shockwave"
+                eff_params = {"Color1": color}
+
             eff_params["Color1"] = color
 
             # tiny models get a simple "On" instead of heavy effects
