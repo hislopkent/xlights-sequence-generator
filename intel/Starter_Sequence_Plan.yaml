@@ -1,14 +1,38 @@
-# Plan for the starter xLights sequence.
-# Model and group names should match those defined in xlights_rgbeffects.xml.
-sequence_name: Starter Sequence
-music: TBD
-models:
-  - ExampleModel
-  - ExampleGroup
-steps:
-  - time: 0
-    action: fade_in
-    targets: [ExampleModel]
-  - time: 5
-    action: sparkle
-    targets: [ExampleGroup]
+meta:
+  song: "Carol of the Bells (Lindsey Stirling)"
+  tempo_bpm_estimate: 140
+  duration_estimate_sec: 225
+  timing_tracks: ["Beat", "Bar", "Downbeats"]
+  palette: ["WarmWhite", "Red", "IceBlue"]
+  brightness_caps:
+    wide_groups: 0.75
+    focals_peak: 0.9
+  notes: "Micro-blackout before big hits; Shockwave ≤0.4s; end on dark."
+
+global:
+  fade_default: 0.18
+  ease: "ease-in-out"
+
+sections:
+  - name: "Intro Bells"
+    start: 0.0
+    end: 14.0
+    cues:
+      - group: "Metronome_Outlines"
+        effect: "SingleStrand"
+        params: { mode: "chase", speed: 10, bounce: false, opacity: 0.4, snap_to: "Beat" }
+      - group: "Focal_Spinners"
+        effect: "On"
+        at: [3.9, 7.9, 11.9]
+        params: { color: "WarmWhite", duration: 0.25, opacity: 0.75 }
+      - group: "Focal_VerticalMatrices"
+        effect: "On"
+        pattern: "L/R alternate on downbeats"
+        params: { color: "IceBlue", duration: 0.20, opacity: 0.6, snap_to: "Downbeats" }
+      - group: "Focal_Spinners"
+        effect: "Shockwave"
+        at: [13.6]
+        params: { color: "WarmWhite", duration: 0.35, brightness: 0.9 }
+      - blackout_at: [13.4]
+
+  # (rest of YAML omitted for brevity in this file — copy from assistant's plan)

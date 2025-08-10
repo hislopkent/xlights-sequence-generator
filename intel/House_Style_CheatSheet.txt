@@ -1,6 +1,47 @@
-House Style Cheat Sheet
------------------------
-- Use CamelCase for model names.
-- Group names should be descriptive (e.g., RoofOutline, MegaTree).
-- Timing marks follow 10ms resolution.
-- Layout file xlights_rgbeffects.xml is read-only; do not overwrite.
+Xlights House Style Cheat Sheet
+==============================
+
+Core Groups to Target:
+- Metronome_Outlines — roof, windows, doors; your “timekeeper”
+- Arches_All / Arches_Odd / Arches_Even — motion lanes + call/response
+- Focal_Tree — chorus engine; carries the hook
+- Focal_VerticalMatrices — Front Door L/R; secondary focal for riffs/lyrics
+- Focal_Spinners — PopStars/Showstopper; hit markers & cadence accents
+- 01 – All Display / 02 – House (All) / 03 – Yard (All) — wideners (use sparingly)
+- All_Display_NoFaces — house‑wide lifts without lighting faces
+- House_Third_Left / Middle / Right — spatial phrasing (antiphonal patterns)
+
+Effects Default Kit:
+- SingleStrand → metronome/chases/bounce on outlines & arches
+- Spirals → musical lift on Focal_Tree (thin in verses, wider in choruses)
+- Shockwave → quick, bright hit accents (downbeats/transitions)
+- On (short pops/fades) → punctuation; never long strobe
+- Shader (subtle) → wide texture during holds; keep dim
+
+Section Recipes:
+- Intro: Metronome_Outlines = SingleStrand (dim, slow) • 1× Shockwave on a pickup • micro‑blackout (≤0.3s) before first hit
+- Verse: Arches bounce on Beat • Focal_Tree minimal Spirals (low arms/speed) • V‑Matrices thin On pops on motifs
+- Pre‑Chorus: Add width: All_Display_NoFaces low‑amp Shader • Shockwave on cadence
+- Chorus: Focal_Tree Spirals (arms↑ rotation↑) • Arches bounce + occasional Shockwave on 1 • Outlines steady chase
+- Bridge: Pull density down; monochrome; negative space + short Off cuts
+- Finale: Stack short Shockwave + On hits across Focals → brief All‑Display lift → end on dark
+
+Timing & Hits:
+- Tracks: Beat/Downbeat + Bar + optional Vocals
+- Hit pattern: tiny blackout just before big accents; Shockwave ≤ 0.4s; full white ≤ 0.8s total in a row
+
+Brightness Caps:
+- Wide groups: 65–80%
+- Focals: 75–90% for peaks only
+- Verses: 35–55% most of the time
+
+Color Habits:
+- Verses: 1–2 colors + warm‑white accents
+- Choruses: add third color or widen saturation
+- Finale: brief full palette, then cut
+
+Do / Don’t:
+- ✅ One clear focal at a time
+- ✅ Use thirds (Left/Middle/Right) for call‑and‑response
+- ❌ Don’t layer multiple fast textures across All_Display
+- ❌ Don’t leave full‑white running; keep hits short
