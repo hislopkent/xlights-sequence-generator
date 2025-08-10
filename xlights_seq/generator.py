@@ -56,6 +56,7 @@ def build_rgbeffects(
     downbeat_times=None,
     section_times=None,
     palette=None,
+    preferred_groups=None,
 ):
     """Generate an xLights RGB effects file using a preset.
 
@@ -79,7 +80,12 @@ def build_rgbeffects(
     palette : list[str], optional
         Optional list of hex colors (e.g. ``"#FF0000"``) used for Color1 cycling.
         If not provided, falls back to the module ``PALETTE``.
+    preferred_groups : list[str], optional
+        Names or substrings of model groups that should receive a stronger
+        effect. Matching models will favor brighter presets over simple ones.
     """
+
+    preferred_groups = {pg.lower() for pg in (preferred_groups or [])}
 
     root = ET.Element("xrgb", version="2024.05", showDir=".")
 
@@ -109,6 +115,7 @@ def build_rgbeffects(
     # simple per-beat effect per model
     active_palette = palette or PALETTE
     for m in models:
+        boost = any(pg in m.name.lower() for pg in preferred_groups)
         mdl = ET.SubElement(root, "model", name=m.name)
         layer = ET.SubElement(mdl, "effectLayer", name="Layer 1")
         base_type, base_params = choose_effect_for(m.name)
@@ -128,6 +135,14 @@ def build_rgbeffects(
             if eff_type == "On" and eff_params.get("Color1") == "#FFFFFF":
                 eff_type = preset_cfg["type"]
                 eff_params.update(preset_cfg.get("params", {}))
+
+            if boost and eff_type == "On":
+                if preset_cfg["type"] != "On":
+                    eff_type = preset_cfg["type"]
+                    eff_params.update(preset_cfg.get("params", {}))
+                else:
+                    eff_type = "Bars"
+                    eff_params = {"Bars": "8"}
 
             # rotating color palette
             color = active_palette[i % len(active_palette)]
@@ -154,6 +169,7 @@ def build_rgbeffects(
                 and preset in HEAVY_PRESETS
                 and m.nodes is not None
                 and m.nodes < SMALL_MODEL_NODES
+                and not boost
             ):
                 eff_type = PRESETS["solid_pulse"]["type"]
                 eff_params = PRESETS["solid_pulse"]["params"].copy()

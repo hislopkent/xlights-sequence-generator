@@ -60,3 +60,21 @@ def test_sections_timing_track():
     markers = sec_track.findall("marker")
     assert markers[0].get("timeMS") == "1000"
     assert markers[1].get("timeMS") == "2000"
+
+
+def test_preferred_groups_boosts_effect():
+    m1 = ModelInfo(name="plain1")
+    m2 = ModelInfo(name="plain2")
+    beat_times = [0, 1]
+    tree = build_rgbeffects(
+        [m1, m2],
+        beat_times,
+        duration_ms=2000,
+        preset="solid_pulse",
+        preferred_groups=["plain1"],
+    )
+    root = tree.getroot()
+    e1 = root.find("./model[@name='plain1']//effect")
+    e2 = root.find("./model[@name='plain2']//effect")
+    assert e1.get("type") == "Bars"
+    assert e2.get("type") == "On"
