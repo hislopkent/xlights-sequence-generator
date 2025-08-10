@@ -153,6 +153,12 @@ def generate():
         if not palette:
             palette = None
 
+    selected_recs = request.form.get("selected_recommendations")
+    try:
+        selected_recs = json.loads(selected_recs) if selected_recs else []
+    except Exception:
+        selected_recs = []
+
     if not layout or not audio:
         return (
             jsonify({"ok": False, "error": "Both layout XML and audio are required."}),
