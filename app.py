@@ -207,6 +207,11 @@ def generate():
     beat_times = analysis["beat_times"]
     downbeat_times = analysis.get("downbeat_times", [])
     section_times = analysis.get("section_times", [])
+    beat_count = len(beat_times)
+    downbeat_count = len(downbeat_times)
+    section_count = len(section_times)
+    selected_model_count = len(models)
+    total_model_count = selected_model_count
     sections = [
         {"time": float(t), "label": f"Section {i+1}"}
         for i, t in enumerate(section_times[1:], start=2)
@@ -289,8 +294,14 @@ def generate():
             "ok": True,
             "jobId": job,
             "bpm": analysis.get("bpm"),
+            "durationMs": duration_ms,
+            "beatCount": beat_count,
+            "downbeatCount": downbeat_count,
+            "sectionCount": section_count,
+            "modelCount": selected_model_count,
+            "selectedModelCount": selected_model_count,
+            "totalModelCount": total_model_count,
             "version": APP_VERSION,
-            "modelCount": len(models),
             "exportFormat": export_format,
             "downloadUrl": f"/download/{job}/{download_name}",
         }

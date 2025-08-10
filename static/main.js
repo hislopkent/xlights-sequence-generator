@@ -23,10 +23,15 @@ function showMessage(msg) {
 
 function showResult(j) {
   out.className = 'result-panel';
+  const durationSec = j.durationMs ? (j.durationMs / 1000).toFixed(2) : 'unknown';
+  const selCount = j.selectedModelCount ?? j.modelCount ?? 0;
+  const totalCount = j.totalModelCount ?? selCount;
   out.innerHTML = `
     <div><b>Export:</b> ${j.exportFormat}</div>
-    <div><b>BPM:</b> ${j.bpm ?? "auto/fallback"} · v${j.version ?? "unknown"}</div>
-    <div><b>Models:</b> ${j.modelCount}</div>
+    <div><b>BPM (auto):</b> ${j.bpm ?? "unknown"} · v${j.version ?? "unknown"}</div>
+    <div><b>Duration:</b> ${durationSec}s</div>
+    <div><b>Counts:</b> beats ${j.beatCount} · downbeats ${j.downbeatCount} · sections ${j.sectionCount}</div>
+    <div><b>Models:</b> ${selCount} / ${totalCount}</div>
     <p><a href="${j.downloadUrl}" download>Download file</a></p>
   `;
 }
@@ -67,6 +72,7 @@ form.addEventListener('submit', async (e) => {
       return;
     }
     showResult(j);
+    renderPreview(j.jobId, j.durationMs);
   } catch (err) {
     showError('Network error: ' + err.message);
   } finally {
