@@ -92,21 +92,13 @@ def analyze_beats(audio_path: str):
 
 def analyze_beats_plus(audio_path: str):
     y, sr = librosa.load(audio_path, mono=True)
-    tempo, beats_time = librosa.beat.beat_track(
-        y=y, sr=sr, units="time", trim=True
-    )
-    # downbeats: estimate meter using tempogram/onset
+    tempo, beats_time = librosa.beat.beat_track(y=y, sr=sr, units="time", trim=True)
     onset_env = librosa.onset.onset_strength(y=y, sr=sr)
-    tempo2, beats_frames = librosa.beat.beat_track(
-        onset_envelope=onset_env, sr=sr, trim=True
-    )
+    _, beats_frames = librosa.beat.beat_track(onset_envelope=onset_env, sr=sr, trim=True)
     beats_time2 = librosa.frames_to_time(beats_frames, sr=sr)
-    # crude downbeat every 4 beats as a fallback
     downbeats_time = beats_time2[::4] if len(beats_time2) else np.array([])
-    # sections via novelty curve + fixed window (e.g., ~15s) as a robust MVP
     duration = float(librosa.get_duration(y=y, sr=sr))
-    section_len = 15.0
-    sections_time = np.arange(0, duration, section_len)
+    sections_time = np.arange(0.0, duration, 15.0)  # coarse 15s grid MVP
     return {
         "bpm": float(tempo),
         "beat_times": beats_time.tolist(),
