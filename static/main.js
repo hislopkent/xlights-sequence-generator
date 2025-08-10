@@ -77,11 +77,11 @@ form.addEventListener('submit', async (e) => {
 // Initial message
   showMessage('Waiting...');
 
-async function renderPreview(jobId, durationMs) {
-  if (!previewCanvas) return;
-  try {
-    const r = await fetch(`/preview.json?job=${encodeURIComponent(jobId)}`);
-    const data = await r.json();
+  async function renderPreview(jobId, durationMs) {
+    if (!previewCanvas) return;
+    try {
+      const r = await fetch(`/preview.json?job=${encodeURIComponent(jobId)}`);
+      const data = await r.json();
     if (!data.ok) return;
     const width = previewCanvas.width;
     const height = previewCanvas.height;
@@ -106,7 +106,59 @@ async function renderPreview(jobId, durationMs) {
       ctx.stroke();
     });
     previewCanvas.style.display = 'block';
-  } catch (err) {
-    // ignore errors
+    } catch (err) {
+      // ignore errors
+    }
   }
+
+const modelTree = document.getElementById('modelTree');
+const searchBox = document.getElementById('searchBox');
+const showGroups = document.getElementById('showGroups');
+const showModels = document.getElementById('showModels');
+const layoutInput = document.querySelector('input[name="layout"]');
+
+let layoutTree = null;
+
+function renderTree(node, depth = 0) {
+  const vis =
+    (node.type === 'group' && showGroups.checked) ||
+    (node.type === 'model' && showModels.checked) ||
+    node.name === 'ROOT';
+  if (!vis) return '';
+  const match = (searchBox.value || '').toLowerCase();
+  const visibleName = node.name.toLowerCase().includes(match);
+  const badge =
+    node.type === 'model'
+      ? ` <small>(${node.strings ?? '?'} strings, ${node.nodes ?? '?'} nodes)</small>`
+      : '';
+  const kids = (node.children || [])
+    .map((c) => renderTree(c, depth + 1))
+    .join('');
+  const hasKids = !!kids;
+  const row = `<div data-type="${node.type}" style="margin-left:${depth * 16}px">
+    ${hasKids ? '▸' : ''} <strong>${node.name}</strong> <em>${node.type}</em>${badge}
+  </div>`;
+  return visibleName || kids ? row + kids : '';
 }
+
+async function inspectLayout(file) {
+  const fd = new FormData();
+  fd.append('layout', file);
+  const r = await fetch('/inspect-layout', { method: 'POST', body: fd });
+  const j = await r.json();
+  if (!j.ok) {
+    modelTree.textContent = 'Failed to parse layout: ' + (j.error || '');
+    return;
+  }
+  layoutTree = j.tree;
+  modelTree.innerHTML = renderTree(layoutTree);
+}
+
+layoutInput?.addEventListener('change', () => {
+  if (layoutInput.files?.[0]) inspectLayout(layoutInput.files[0]);
+});
+[searchBox, showGroups, showModels].forEach((el) =>
+  el?.addEventListener('input', () => {
+    if (layoutTree) modelTree.innerHTML = renderTree(layoutTree);
+  })
+);
