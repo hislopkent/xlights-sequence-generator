@@ -7,12 +7,16 @@ from xlights_seq.parsers import parse_models, parse_tree, flatten_models
 from xlights_seq.audio import analyze_beats
 from xlights_seq.generator import build_rgbeffects, write_rgbeffects
 from xlights_seq.xsq_package import write_xsq, write_xsqz
+from xlights_seq.versioning import build_version
 from logger import get_json_logger
 
 OFFLINE = os.environ.get("OFFLINE", "1") == "1"
 
+APP_VERSION = build_version()
+
 app = Flask(__name__)
 app.config.from_object(Config)
+app.config["VERSION"] = APP_VERSION
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs(app.config["OUTPUT_FOLDER"], exist_ok=True)
 
@@ -78,7 +82,7 @@ def index():
 
 @app.get("/health")
 def health():
-    return jsonify(ok=True)
+    return jsonify(ok=True, version=APP_VERSION)
 
 
 @app.get("/version")
@@ -283,6 +287,7 @@ def generate():
                 "export_format": export_format,
                 "has_networks": bool(networks_path),
                 "has_media": os.path.exists(audio_path),
+                "version": APP_VERSION,
             },
             f,
             indent=2,

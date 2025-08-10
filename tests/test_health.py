@@ -23,7 +23,8 @@ def test_health_endpoint(client):
     test_client, _ = client
     resp = test_client.get("/health")
     assert resp.status_code == 200
-    assert resp.get_json() == {"ok": True}
+    import app
+    assert resp.get_json() == {"ok": True, "version": app.APP_VERSION}
 
 
 def test_logging_to_file(client):
