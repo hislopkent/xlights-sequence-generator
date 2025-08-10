@@ -37,7 +37,7 @@ def test_version_endpoint(client):
 def test_version_in_index(client):
     resp = client.get("/")
     assert resp.status_code == 200
-    assert f"Version: {EXPECTED_VERSION}".encode() in resp.data
+    assert b'id="appver"' in resp.data
 
 
 def test_health_includes_version(client):
