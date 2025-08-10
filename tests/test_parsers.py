@@ -1,7 +1,13 @@
 import xml.etree.ElementTree as ET
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from xlights_seq.parsers import parse_models, ModelInfo, parse_tree_with_index
+from xlights_seq.parsers import (
+    parse_models,
+    ModelInfo,
+    parse_tree_with_index,
+    map_style_groups_to_layout,
+    parse_layout_groups_and_models,
+)
 
 
 def test_parse_models_deduplicate(tmp_path):
@@ -35,3 +41,20 @@ def test_parse_tree_with_index(tmp_path):
     assert name_index["MegaTree"].parent.name == "MegaTree_GROUP"
     assert name_index["MiniTree"].parent.name == "Trees"
     assert name_index["MegaTree_GROUP"].type == "group"
+
+
+def test_layout_groups_and_fuzzy_match(tmp_path):
+    xml = ET.Element("root")
+    ET.SubElement(xml, "model", name="Tree", StringCount="5")
+    ET.SubElement(xml, "model", name="Star", Nodes="50")
+    ET.SubElement(xml, "group", name="Focal Tree")
+    ET.SubElement(xml, "group", name="Garage")
+    ET.ElementTree(xml).write(tmp_path / "layout.xml")
+
+    layout_groups, models_index = parse_layout_groups_and_models(str(tmp_path / "layout.xml"))
+    assert set(layout_groups) == {"Focal Tree", "Garage"}
+    assert models_index["Tree"].strings == 5
+    assert models_index["Star"].nodes == 50
+
+    mapping = map_style_groups_to_layout(["Focal_Tree", "Garage/Porch", "Other"], layout_groups)
+    assert mapping == {"Focal_Tree": "Focal Tree", "Garage/Porch": "Garage"}

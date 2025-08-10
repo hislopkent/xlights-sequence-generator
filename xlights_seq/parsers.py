@@ -1,7 +1,34 @@
 import xml.etree.ElementTree as ET
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
+
+
+def _norm(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s).lower()
+    s = re.sub(r"[^a-z0-9]+", "", s)
+    return s
+
+
+def map_style_groups_to_layout(style_group_names: list[str], layout_groups: list[str]) -> Dict[str, str]:
+    """Map suggested style groups (e.g., 'Focal_Tree') to best matching layout group names."""
+    norm_layout = { _norm(g): g for g in layout_groups }
+    out = {}
+    for sg in style_group_names:
+        candidates = [p.strip() for p in re.split(r"[,/•–-]", sg) if p.strip()]
+        best = None
+        for c in candidates:
+            n = _norm(c)
+            for k, orig in norm_layout.items():
+                if n and n in k:
+                    best = orig
+                    break
+            if best:
+                break
+        if best:
+            out[sg] = best
+    return out
 
 @dataclass
 class ModelInfo:
@@ -46,6 +73,36 @@ def parse_models(xml_path: str) -> list[ModelInfo]:
         if mi.name not in seen:
             uniq.append(mi); seen.add(mi.name)
     return uniq
+
+
+def parse_layout_groups_and_models(xml_path: str) -> tuple[list[str], Dict[str, ModelInfo]]:
+    """Return all layout group names and an index of models with strings/nodes."""
+    root = ET.parse(xml_path).getroot()
+    layout_groups: list[str] = []
+    models_index: Dict[str, ModelInfo] = {}
+
+    for g in root.findall(".//group"):
+        gname = (g.get("name") or g.get("Group") or g.get("Name") or "").strip()
+        if gname:
+            layout_groups.append(gname)
+
+    for m in root.findall(".//model"):
+        name = (m.get("name") or m.get("Model") or m.get("Name") or "").strip()
+        if not name:
+            continue
+        strings = m.get("StringCount") or m.get("strings")
+        nodes = m.get("Nodes") or m.get("nodes")
+        try:
+            strings_i = int(strings) if strings is not None else None
+        except ValueError:
+            strings_i = None
+        try:
+            nodes_i = int(nodes) if nodes is not None else None
+        except ValueError:
+            nodes_i = None
+        models_index[name] = ModelInfo(name=name, strings=strings_i, nodes=nodes_i)
+
+    return layout_groups, models_index
 
 
 def parse_tree(xml_path: str) -> NodeInfo:
