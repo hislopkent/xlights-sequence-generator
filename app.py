@@ -7,6 +7,7 @@ from xlights_seq.parsers import (
     parse_tree,
     flatten_models,
     parse_tree_with_index,
+    extract_model_nodes,
 )
 from xlights_seq.recommend import recommend_groups
 from xlights_seq.audio import analyze_beats_plus
@@ -126,6 +127,81 @@ def recommend_groups_api():
     tree, _ = parse_tree_with_index(tmp)
     recs = recommend_groups(tree)
     return jsonify(ok=True, recommendations=recs, count=len(recs))
+
+
+@app.post("/render-layout")
+def render_layout():
+    layout = request.files.get("layout")
+    if not layout or not layout.filename.lower().endswith(".xml"):
+        return jsonify(ok=False, error="Upload a layout .xml"), 400
+    xml_tmp = os.path.join(app.config["UPLOAD_FOLDER"], f"render-{uuid.uuid4()}.xml")
+    layout.save(xml_tmp)
+
+    try:
+        model_points = extract_model_nodes(xml_tmp)
+    finally:
+        try:
+            os.remove(xml_tmp)
+        except OSError:
+            pass
+
+    traces = []
+    xmin = ymin = 1e9
+    xmax = ymax = -1e9
+
+    def color_for(i: int) -> str:
+        base = [
+            "#1f77b4",
+            "#ff7f0e",
+            "#2ca02c",
+            "#d62728",
+            "#9467bd",
+            "#8c564b",
+            "#e377c2",
+            "#7f7f7f",
+            "#bcbd22",
+            "#17becf",
+        ]
+        return base[i % len(base)]
+
+    for i, (name, pts) in enumerate(model_points.items()):
+        if not pts:
+            continue
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        xmin = min(xmin, min(xs))
+        xmax = max(xmax, max(xs))
+        ymin = min(ymin, min(ys))
+        ymax = max(ymax, max(ys))
+        traces.append(
+            {
+                "type": "scattergl",
+                "mode": "markers",
+                "name": name,
+                "x": xs,
+                "y": ys,
+                "marker": {"size": 4, "color": color_for(i)},
+                "hoverinfo": "name+x+y",
+            }
+        )
+    if not traces:
+        return jsonify(ok=False, error="No pixel coordinates found in layout."), 400
+
+    fig = {
+        "data": traces,
+        "layout": {
+            "title": "Pixel Layout Preview",
+            "xaxis": {"scaleanchor": "y", "scaleratio": 1},
+            "yaxis": {"autorange": "reversed"},
+            "showlegend": True,
+            "margin": {"l": 20, "r": 20, "t": 40, "b": 20},
+        },
+    }
+    return jsonify(
+        ok=True,
+        figure=fig,
+        bounds={"xmin": xmin, "xmax": xmax, "ymin": ymin, "ymax": ymax},
+    )
 
 @app.post("/generate")
 def generate():
