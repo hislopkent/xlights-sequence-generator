@@ -106,3 +106,64 @@ def analyze_beats_plus(audio_path: str):
         "section_times": sections_time.tolist(),
         "duration_s": duration,
     }
+
+
+def analyze_intel(audio_path: str, plan: dict):
+    """Analyze an audio file with quantization and optional swing.
+
+    This function provides a more robust timing analysis by quantizing
+    beats to a regular grid and optionally applying swing to the off-beats.
+    It also estimates downbeats, bars, and coarse sections which can be
+    overridden by the ``plan`` parameter.
+    """
+
+    y, sr = librosa.load(audio_path, mono=True)
+
+    # 1) BPM estimate and beats
+    tempo, beats_t = librosa.beat.beat_track(y=y, sr=sr, units="time", trim=True)
+
+    # Allow manual override from plan
+    if plan.get("meta", {}).get("tempo_bpm_estimate"):
+        tempo = float(plan["meta"]["tempo_bpm_estimate"])
+
+    # 2) Downbeats = every 4 beats (fallback)
+    downbeats_t = beats_t[::4] if len(beats_t) else np.array([])
+
+    # 3) Bars (alias of downbeats for UI)
+    bars_t = downbeats_t
+
+    # 4) Sections: use plan sections if present else coarse 12–18s grid
+    if plan.get("sections"):
+        secs = [float(s.get("start", 0)) for s in plan["sections"] if "start" in s]
+        section_t = np.array(sorted({t for t in secs if t >= 0}))
+    else:
+        duration = float(librosa.get_duration(y=y, sr=sr))
+        grid = 15.0
+        section_t = np.arange(0.0, duration, grid)
+
+    # 5) Quantization to a grid (reduce jitter)
+    period = 60.0 / tempo if tempo > 0 else 0.5
+
+    def quantize(ts, base=0.0, step=period / 2):
+        if ts is None or len(ts) == 0:
+            return ts
+        return np.round((ts - base) / step) * step + base
+
+    beats_t_q = quantize(beats_t, step=period / 2)  # eighth-note grid
+    downbeats_t_q = quantize(downbeats_t, step=period)
+    bars_t_q = downbeats_t_q
+
+    # 6) Optional swing % from plan (± push/pull off-beats)
+    swing = float(plan.get("global", {}).get("swing_percent", 0)) / 100.0
+    if swing:
+        # push odd eighths, pull even (lightest implementation)
+        for i in range(1, len(beats_t_q), 2):
+            beats_t_q[i] += period / 2 * swing
+
+    return {
+        "tempo": float(tempo),
+        "beats": beats_t_q.tolist(),
+        "downbeats": downbeats_t_q.tolist(),
+        "bars": bars_t_q.tolist(),
+        "sections": section_t.tolist(),
+    }

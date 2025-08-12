@@ -2,7 +2,7 @@ import numpy as np
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import librosa
-from xlights_seq.audio import analyze_beats, analyze_beats_plus
+from xlights_seq.audio import analyze_beats, analyze_beats_plus, analyze_intel
 
 
 def test_analyze_beats_mocked(monkeypatch):
@@ -43,3 +43,25 @@ def test_analyze_beats_plus_mocked(monkeypatch):
     assert result["downbeat_times"] == [0.0, 2.0]
     assert result["section_times"][0] == 0.0
     assert result["duration_s"] == 30.0
+
+
+def test_analyze_intel_quant_swing(monkeypatch):
+    monkeypatch.setattr(librosa, "load", lambda path, mono: (np.zeros(4), 22050))
+
+    beats = np.array([0.01, 0.26, 0.51, 0.76, 1.01, 1.26, 1.51, 1.76])
+
+    def fake_beat_track(*args, **kwargs):
+        return 100.0, beats
+
+    monkeypatch.setattr(librosa.beat, "beat_track", fake_beat_track)
+    monkeypatch.setattr(librosa, "get_duration", lambda y, sr: 30.0)
+
+    plan = {"meta": {"tempo_bpm_estimate": 120}, "global": {"swing_percent": 50}}
+    result = analyze_intel("dummy.wav", plan)
+
+    assert result["tempo"] == 120.0
+    expected_beats = [0.0, 0.375, 0.5, 0.875, 1.0, 1.375, 1.5, 1.875]
+    assert np.allclose(result["beats"], expected_beats)
+    assert np.allclose(result["downbeats"], [0.0, 1.0])
+    assert result["bars"] == result["downbeats"]
+    assert result["sections"] == [0.0, 15.0]
