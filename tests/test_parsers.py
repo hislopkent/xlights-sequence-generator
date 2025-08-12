@@ -52,10 +52,13 @@ def test_layout_groups_and_fuzzy_match(tmp_path):
     ET.SubElement(xml, "group", name="Garage")
     ET.ElementTree(xml).write(tmp_path / "layout.xml")
 
-    layout_groups, models_index = parse_layout_groups_and_models(str(tmp_path / "layout.xml"))
+    layout_groups, models_index, models_by_group = parse_layout_groups_and_models(
+        str(tmp_path / "layout.xml")
+    )
     assert set(layout_groups) == {"Focal Tree", "Garage"}
     assert models_index["Tree"].strings == 5
     assert models_index["Star"].nodes == 50
+    assert models_by_group == {"Focal Tree": [], "Garage": []}
 
     mapping = map_style_groups_to_layout(["Focal_Tree", "Garage/Porch", "Other"], layout_groups)
     assert mapping == {"Focal_Tree": "Focal Tree", "Garage/Porch": "Garage"}
