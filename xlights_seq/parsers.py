@@ -2,13 +2,22 @@ import xml.etree.ElementTree as ET
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 
 
 def _norm(s: str) -> str:
     s = unicodedata.normalize("NFKD", s).lower()
     s = re.sub(r"[^a-z0-9]+", "", s)
     return s
+
+
+def _attr(elem, *names) -> Optional[str]:
+    for n in names:
+        if n in elem.attrib:
+            return elem.attrib[n]
+        if n.capitalize() in elem.attrib:
+            return elem.attrib[n.capitalize()]
+    return None
 
 
 def map_style_groups_to_layout(style_group_names: list[str], layout_groups: list[str]) -> Dict[str, str]:
@@ -103,6 +112,40 @@ def parse_layout_groups_and_models(xml_path: str) -> tuple[list[str], Dict[str, 
         models_index[name] = ModelInfo(name=name, strings=strings_i, nodes=nodes_i)
 
     return layout_groups, models_index
+
+
+def extract_model_nodes(xml_path: str) -> Dict[str, List[Tuple[float, float]]]:
+    """
+    Returns { model_name: [(x,y), ...] }.
+    Tries common xLights layouts: <model><node x="" y=""/>, or nested variants.
+    """
+    root = ET.parse(xml_path).getroot()
+    out: Dict[str, List[Tuple[float, float]]] = {}
+    for m in root.findall(".//model"):
+        name = m.get("name") or m.get("Model") or m.get("Name")
+        if not name:
+            continue
+        pts: List[Tuple[float, float]] = []
+        # 1) Direct nodes
+        for n in m.findall(".//node"):
+            xs, ys = _attr(n, "x"), _attr(n, "y")
+            if xs is not None and ys is not None:
+                try:
+                    pts.append((float(xs), float(ys)))
+                except ValueError:
+                    pass
+        # 2) Some layouts store coordinates on <pixel> or <point> elements
+        if not pts:
+            for tag in ("pixel", "point", "Point"):
+                for n in m.findall(f".//{tag}"):
+                    xs, ys = _attr(n, "x"), _attr(n, "y")
+                    if xs is not None and ys is not None:
+                        try:
+                            pts.append((float(xs), float(ys)))
+                        except ValueError:
+                            pass
+        out[name] = pts
+    return out
 
 
 def parse_tree(xml_path: str) -> NodeInfo:
