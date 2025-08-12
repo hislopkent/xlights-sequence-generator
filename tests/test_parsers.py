@@ -7,6 +7,7 @@ from xlights_seq.parsers import (
     parse_tree_with_index,
     map_style_groups_to_layout,
     parse_layout_groups_and_models,
+    extract_model_nodes,
 )
 
 
@@ -58,3 +59,18 @@ def test_layout_groups_and_fuzzy_match(tmp_path):
 
     mapping = map_style_groups_to_layout(["Focal_Tree", "Garage/Porch", "Other"], layout_groups)
     assert mapping == {"Focal_Tree": "Focal Tree", "Garage/Porch": "Garage"}
+
+
+def test_extract_model_nodes(tmp_path):
+    xml = ET.Element("root")
+    m1 = ET.SubElement(xml, "model", name="Tree")
+    ET.SubElement(m1, "node", x="1", y="2")
+    ET.SubElement(m1, "node", X="3", Y="4")
+    m2 = ET.SubElement(xml, "model", name="Star")
+    ET.SubElement(m2, "pixel", x="5", y="6")
+    ET.SubElement(m2, "pixel", x="7", y="8")
+    ET.ElementTree(xml).write(tmp_path / "coords.xml")
+
+    coords = extract_model_nodes(str(tmp_path / "coords.xml"))
+    assert coords["Tree"] == [(1.0, 2.0), (3.0, 4.0)]
+    assert coords["Star"] == [(5.0, 6.0), (7.0, 8.0)]
