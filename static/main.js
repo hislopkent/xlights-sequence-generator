@@ -124,6 +124,42 @@ const searchBox = document.getElementById('searchBox');
 const showGroups = document.getElementById('showGroups');
 const showModels = document.getElementById('showModels');
 const layoutInput = document.querySelector('input[name="layout"]');
+// Load Plotly only once (CDN, offline-friendly if you host it later)
+const PLOTLY_URL = "https://cdn.plot.ly/plotly-2.35.2.min.js";
+let plotlyReady = null;
+function ensurePlotly() {
+  if (window.Plotly) return Promise.resolve();
+  if (!plotlyReady) {
+    plotlyReady = new Promise((res, rej)=>{
+      const s = document.createElement('script');
+      s.src = PLOTLY_URL; s.onload = res; s.onerror = ()=>rej(new Error("Plotly load failed"));
+      document.head.appendChild(s);
+    });
+  }
+  return plotlyReady;
+}
+
+const layoutDiv = document.getElementById('layoutPlot');
+
+async function drawLayoutPreview(file){
+  try {
+    await ensurePlotly();
+    const fd = new FormData(); fd.append('layout', file);
+    const r = await fetch('/render-layout', { method:'POST', body: fd });
+    const j = await r.json();
+    if (!j.ok) { layoutDiv.textContent = j.error || 'Failed to render layout'; return; }
+    // Render
+    const config = {displaylogo:false, responsive:true, toImageButtonOptions:{format:'png', height:720, width:1280, filename:'layout'}};
+    await Plotly.newPlot(layoutDiv, j.figure.data, j.figure.layout, config);
+  } catch (e) {
+    layoutDiv.textContent = 'Error: ' + e.message;
+  }
+}
+
+layoutInput?.addEventListener('change', ()=>{
+  const f = layoutInput.files?.[0];
+  if (f) { layoutDiv.textContent = 'Rendering…'; drawLayoutPreview(f); }
+});
 const btnRecs = document.getElementById('btnRecs');
 const recsList = document.getElementById('recsList');
 
