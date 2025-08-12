@@ -84,16 +84,35 @@ def parse_models(xml_path: str) -> list[ModelInfo]:
     return uniq
 
 
-def parse_layout_groups_and_models(xml_path: str) -> tuple[list[str], Dict[str, ModelInfo]]:
-    """Return all layout group names and an index of models with strings/nodes."""
+def parse_layout_groups_and_models(
+    xml_path: str,
+) -> tuple[list[str], Dict[str, ModelInfo], Dict[str, list[str]]]:
+    """Return all layout group names, an index of models with strings/nodes,
+    and a mapping of group name to member model names."""
     root = ET.parse(xml_path).getroot()
     layout_groups: list[str] = []
     models_index: Dict[str, ModelInfo] = {}
+    models_by_group: Dict[str, list[str]] = {}
 
     for g in root.findall(".//group"):
         gname = (g.get("name") or g.get("Group") or g.get("Name") or "").strip()
-        if gname:
-            layout_groups.append(gname)
+        if not gname:
+            continue
+        layout_groups.append(gname)
+        members: list[str] = []
+        for mem in g.findall("member"):
+            ref = mem.get("name")
+            if ref and ref not in members:
+                members.append(ref)
+        members_csv = g.get("members") or g.get("Members") or ""
+        for ref in [x.strip() for x in members_csv.split(",") if x.strip()]:
+            if ref not in members:
+                members.append(ref)
+        for m in g.findall("model"):
+            mname = (m.get("name") or m.get("Model") or m.get("Name") or "").strip()
+            if mname and mname not in members:
+                members.append(mname)
+        models_by_group[gname] = members
 
     for m in root.findall(".//model"):
         name = (m.get("name") or m.get("Model") or m.get("Name") or "").strip()
@@ -111,7 +130,7 @@ def parse_layout_groups_and_models(xml_path: str) -> tuple[list[str], Dict[str, 
             nodes_i = None
         models_index[name] = ModelInfo(name=name, strings=strings_i, nodes=nodes_i)
 
-    return layout_groups, models_index
+    return layout_groups, models_index, models_by_group
 
 
 def extract_model_nodes(xml_path: str) -> Dict[str, List[Tuple[float, float]]]:
