@@ -3,15 +3,19 @@ import os, uuid, json, shutil, time, re, zipfile
 from werkzeug.exceptions import RequestEntityTooLarge
 from xlights_seq.config import Config
 from xlights_seq.parsers import (
-    parse_models,
     parse_tree,
     flatten_models,
     parse_tree_with_index,
+    parse_layout_groups_and_models,
     extract_model_nodes,
 )
 from xlights_seq.recommend import recommend_groups
 from xlights_seq.audio import analyze_beats_plus
-from xlights_seq.xsq_writer import build_xsq, write_xsq
+from xlights_seq.xsq_writer import build_xsq_from_intents, write_xsq
+from xlights_seq.intel_engine import build_intents
+from xlights_seq.ai_planner import generate_ai_plan, AIPlanError
+from xlights_seq.fallback_planner import build_fallback_plan
+from xlights_seq.plan import load_style
 from xlights_seq.versioning import build_version
 from logger import get_json_logger
 
@@ -212,6 +216,8 @@ def generate():
     audio = request.files.get("audio")
     networks = request.files.get("networks")
     preset = request.form.get("preset", "solid_pulse")
+    use_ai = request.form.get("use_ai", "").strip().lower() in ("1", "true", "on", "yes")
+    style_prompt = (request.form.get("style_prompt") or "").strip()
     export_format = request.form.get("export_format", "xsq")
     export_title = (request.form.get("package_title") or "My Sequence").strip()
     safe_title = "".join(ch for ch in export_title if ch not in "\\/:*?\"<>|").strip() or "My Sequence"
@@ -299,9 +305,18 @@ def generate():
     app.logger.info("generate_files", extra=extra)
 
     try:
-        models = parse_models(xml_path)
+        layout_groups, models_index, models_by_group = parse_layout_groups_and_models(xml_path)
     except Exception as e:
         return jsonify({"ok": False, "error": f"Failed to parse XML: {e}"}), 400
+    models = list(models_index.values())
+
+    # Layouts without explicit <group> elements (or models not in any group) get a
+    # self-named group so the plan/intent pipeline can still address them individually.
+    covered = {m for members in models_by_group.values() for m in members}
+    standalone = [name for name in models_index if name not in covered]
+    for name in standalone:
+        models_by_group[name] = [name]
+    addressable_groups = layout_groups + standalone
 
     analysis = analyze_beats_plus(audio_path)
     duration_ms = int(analysis["duration_s"] * 1000)
@@ -317,14 +332,48 @@ def generate():
         {"time": float(t), "label": f"Section {i+1}"}
         for i, t in enumerate(section_times[1:], start=2)
     ]
-    xsq_tree = build_xsq(
-        models,
-        beat_times,
-        duration_ms,
-        downbeat_times=downbeat_times,
-        section_times=section_times,
-        preset=preset,
-    )
+    duration_s = analysis.get("duration_s", duration_ms / 1000)
+    timing = {
+        "beats": beat_times,
+        "downbeats": downbeat_times,
+        "bars": downbeat_times,
+        "sections": section_times,
+    }
+
+    ai_used = False
+    ai_fallback_reason = None
+    sequence_plan = None
+
+    if use_ai and not OFFLINE:
+        try:
+            house_style = load_style()
+        except Exception:
+            house_style = ""
+        ai_context = {
+            "bpm": analysis.get("bpm") or 0.0,
+            "duration_s": duration_s,
+            "section_times": section_times,
+            "groups": [
+                {"name": g, "model_count": len(models_by_group.get(g, []))}
+                for g in addressable_groups
+            ],
+            "house_style": house_style,
+            "style_prompt": style_prompt,
+            "palette": palette,
+        }
+        try:
+            sequence_plan = generate_ai_plan(ai_context)
+            ai_used = True
+        except AIPlanError as e:
+            ai_fallback_reason = str(e)
+    elif use_ai and OFFLINE:
+        ai_fallback_reason = "AI director disabled (OFFLINE mode)"
+
+    if sequence_plan is None:
+        sequence_plan = build_fallback_plan(section_times, duration_s, addressable_groups, palette)
+
+    intents = build_intents(sequence_plan, timing, {})
+    xsq_tree = build_xsq_from_intents(models_by_group, timing, intents, duration_s)
     bpm_val = analysis.get("bpm")
 
     job_dir = os.path.join(app.config["OUTPUT_FOLDER"], job)
@@ -370,6 +419,8 @@ def generate():
                 "version": APP_VERSION,
                 "downbeat_times": downbeat_times,
                 "section_times": section_times,
+                "ai_used": ai_used,
+                "ai_fallback_reason": ai_fallback_reason,
             },
             f,
             indent=2,
@@ -406,6 +457,8 @@ def generate():
             "exportFormat": export_format,
             "title": export_title,
             "downloadUrl": f"/download/{job}/{download_name}",
+            "aiUsed": ai_used,
+            "aiFallbackReason": ai_fallback_reason,
         }
     )
 

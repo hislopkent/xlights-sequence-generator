@@ -1,74 +1,69 @@
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 
 @dataclass
 class Intent:
-    target_group: str     # style group label (e.g., "Metronome_Outlines")
-    layout_group: str     # resolved layout group name
+    target_group: str     # style/plan group label as referenced by the cue
+    layout_group: str     # resolved layout group name (member models come from here)
     effect: str
     start_s: float
     end_s: float
     params: Dict[str, Any]
 
 
-def build_intents(plan: dict, timing: dict, mapping: dict) -> List[Intent]:
-    intents = []
-    palette = plan.get("meta", {}).get("palette", ["#FFFFFF"])
-    fade_def = float(plan.get("global", {}).get("fade_default", 0.18))
-    beats = timing["beats"]
-    down = timing["downbeats"]
-    bars = timing["bars"]
-    secs = timing["sections"]
-    # Example: metronome on outlines → short SingleStrand hits every beat
-    if "Metronome_Outlines" in mapping:
-        g = "Metronome_Outlines"
-        lay = mapping[g]
-        dur = min(0.25, (beats[1] - beats[0]) if len(beats) > 1 else 0.25)
-        for b in beats:
-            intents.append(
-                Intent(
-                    g,
-                    lay,
-                    "SingleStrand",
-                    b,
-                    b + dur,
-                    {"color": palette[0], "fade": fade_def},
+def _times_in_range(times: List[float], start: float, end: float) -> List[float]:
+    return [t for t in times if start <= t < end]
+
+
+def build_intents(plan: dict, timing: dict, mapping: Dict[str, str]) -> List[Intent]:
+    """Expand a section/cue plan into per-group Intents.
+
+    ``plan["sections"]`` entries look like:
+        {"name", "start_s", "end_s", "cues": [
+            {"group", "effect", "params", "snap_to", "at", "duration_s"}, ...
+        ]}
+
+    ``snap_to`` drives how a cue is expanded against ``timing`` (seconds):
+      - "beat"/"downbeat"/"bar": one short intent per matching time in the section
+      - "at": one intent per explicit time in the cue's ``at`` list
+      - "section" (default): a single intent spanning the whole section
+
+    ``mapping`` resolves a cue's group name to the actual layout group name;
+    groups absent from ``mapping`` are used as-is, since both the AI planner and
+    the deterministic fallback planner reference real layout group names directly.
+    """
+    beats = timing.get("beats", [])
+    downbeats = timing.get("downbeats", [])
+    bars = timing.get("bars", downbeats)
+
+    intents: List[Intent] = []
+    for section in plan.get("sections", []):
+        start = float(section.get("start_s", 0.0))
+        end = float(section.get("end_s", start))
+        for cue in section.get("cues", []):
+            group = cue["group"]
+            layout_group = mapping.get(group, group)
+            effect = cue["effect"]
+            params = cue.get("params", {})
+            duration = float(cue.get("duration_s", 0.25))
+            snap_to = cue.get("snap_to", "section")
+
+            if snap_to == "beat":
+                times = _times_in_range(beats, start, end)
+            elif snap_to == "downbeat":
+                times = _times_in_range(downbeats, start, end)
+            elif snap_to == "bar":
+                times = _times_in_range(bars, start, end)
+            elif snap_to == "at":
+                times = [t for t in cue.get("at", []) if start <= t < end]
+            else:  # "section" (or anything unrecognized) -> one cue for the whole span
+                intents.append(Intent(group, layout_group, effect, start, end, params))
+                continue
+
+            for t in times:
+                intents.append(
+                    Intent(group, layout_group, effect, t, min(end, t + duration), params)
                 )
-            )
-    # Example: Focal_Tree spirals over choruses (bars) with lift
-    if "Focal_Tree" in mapping:
-        g = "Focal_Tree"
-        lay = mapping[g]
-        for i, b in enumerate(bars):
-            intents.append(
-                Intent(
-                    g,
-                    lay,
-                    "Spirals",
-                    b,
-                    b
-                    + max(
-                        1.5,
-                        (beats[1] - beats[0]) * 4 if len(beats) > 1 else 2.0,
-                    ),
-                    {"rotation": 0.4 + 0.05 * (i % 4), "arms": 3},
-                )
-            )
-    # Example: Shockwave accents on downbeats
-    if "Focal_Spinners" in mapping:
-        g = "Focal_Spinners"
-        lay = mapping[g]
-        for d in down:
-            intents.append(
-                Intent(
-                    g,
-                    lay,
-                    "Shockwave",
-                    d,
-                    d + 0.35,
-                    {"brightness": 0.9},
-                )
-            )
-    # TODO: walk plan['sections'] for explicit cues like blackout_at, On@times, etc.
+
     return intents
