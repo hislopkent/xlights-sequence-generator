@@ -6,6 +6,11 @@ services:
     container_name: xlights-seq
     ports:
       - "5000:5000"
+    environment:
+      # Optional: enables the AI Director. Leave unset to always use the
+      # deterministic fallback planner (also skipped whenever OFFLINE=1).
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OFFLINE=${OFFLINE:-1}
     volumes:
       - ./uploads:/app/uploads
       - ./generated:/app/generated

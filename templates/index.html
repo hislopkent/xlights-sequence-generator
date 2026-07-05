@@ -46,6 +46,10 @@
           <option value="bars">Bars</option>
         </select>
       </label>
+      <label><input type="checkbox" name="use_ai" value="true"> Use AI Director (requires server-side ANTHROPIC_API_KEY)</label>
+      <label>Style / mood direction for the AI Director (optional)
+        <textarea name="style_prompt" rows="2" placeholder="e.g. energetic, red &amp; green, big finale"></textarea>
+      </label>
       <label>Manual BPM
         <input name="manual_bpm" type="number" step="any">
       </label>

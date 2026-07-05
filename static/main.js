@@ -26,12 +26,16 @@ function showResult(j) {
   const durationSec = j.durationMs ? (j.durationMs / 1000).toFixed(2) : 'unknown';
   const selCount = j.selectedModelCount ?? j.modelCount ?? 0;
   const totalCount = j.totalModelCount ?? selCount;
+  const aiLine = j.aiUsed
+    ? '<div><b>Director:</b> AI (Claude)</div>'
+    : `<div><b>Director:</b> Default planner${j.aiFallbackReason ? ` (AI fallback: ${j.aiFallbackReason})` : ''}</div>`;
   out.innerHTML = `
     <div><b>Export:</b> ${j.exportFormat}</div>
     <div><b>BPM (auto):</b> ${j.bpm ?? "unknown"} · v${j.version ?? "unknown"}</div>
     <div><b>Duration:</b> ${durationSec}s</div>
     <div><b>Counts:</b> beats ${j.beatCount} · downbeats ${j.downbeatCount} · sections ${j.sectionCount}</div>
     <div><b>Models:</b> ${selCount} / ${totalCount}</div>
+    ${aiLine}
     <p><a href="${j.downloadUrl}" download>Download file</a></p>
   `;
 }

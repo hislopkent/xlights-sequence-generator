@@ -43,3 +43,20 @@ docker compose up --build -d
 - Health endpoint: `GET /health` → `{ "ok": true }`
 - Version endpoint: `GET /version` → `{ "version": "<value>" }`
 - Set `APP_VERSION` environment variable to have the web UI display the current version (defaults to `dev`).
+
+## AI Director (optional)
+When enabled, `/generate` asks Claude to plan the sequence — which layout group gets
+which effect and when — based on the song's tempo/section structure and your house
+style, instead of the deterministic default kit.
+
+- Opt in per-request: check **Use AI Director** in the UI (or pass `use_ai=true` to
+  `/generate`), optionally with a `style_prompt` describing the mood/colors you want.
+- Requires an `ANTHROPIC_API_KEY` environment variable. Without one — or if the API
+  call fails or times out, or `OFFLINE=1` — generation falls back automatically to
+  the deterministic planner, and the response reports `aiUsed: false` with
+  `aiFallbackReason` set.
+- `OFFLINE` defaults to `1` (AI calls disabled). Set `OFFLINE=0` and provide
+  `ANTHROPIC_API_KEY` to enable it.
+- The AI only ever picks from a fixed effect/param whitelist
+  (`xlights_seq/effects_catalog.py`); its output is validated before being rendered,
+  so a bad or unexpected response can't produce an invalid sequence file.
